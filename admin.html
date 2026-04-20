@@ -548,19 +548,35 @@
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
-                    if (data.certs) {
-                        certs = data.certs;
+                    let added = 0, updated = 0;
+                    
+                    if (data.certs && Array.isArray(data.certs)) {
+                        // 合并导入：相同ID更新，不同ID添加
+                        data.certs.forEach(newCert => {
+                            const idx = certs.findIndex(c => c.id && c.id === newCert.id);
+                            if (idx >= 0) {
+                                // 更新现有证书
+                                certs[idx] = newCert;
+                                updated++;
+                            } else {
+                                // 添加新证书
+                                certs.push(newCert);
+                                added++;
+                            }
+                        });
                         saveToStorage();
                         renderList();
                         updateStats();
                         updateSuggestions();
                     }
+                    
                     if (data.config) {
                         fieldConfig = data.config;
                         localStorage.setItem(CONFIG_KEY, JSON.stringify(fieldConfig));
                         renderFieldConfig();
                     }
-                    alert('导入成功！共 ' + certs.length + ' 条证书');
+                    
+                    alert(`导入完成！新增 ${added} 条，更新 ${updated} 条，现有 ${certs.length} 条`);
                 } catch (err) {
                     alert('导入失败：文件格式错误');
                 }
