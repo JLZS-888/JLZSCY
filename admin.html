@@ -538,7 +538,9 @@
                 }
                 
                 // 显示证书信息在弹窗中
-                const resultText = cert.reportType === '检定' ? '合格' : '符合要求';
+                const isJianDing = cert.reportType === '检定';
+                const resultLabel = isJianDing ? '检定结果' : '校准结果';
+                const resultText = isJianDing ? '合格' : '符合要求';
                 const infoHtml = `
                     <div class="font-bold text-slate-700 border-b pb-2 mb-2">证书信息</div>
                     ${cert.client ? `<div><span class="text-slate-500">委托单位:</span> <span class="font-medium">${cert.client}</span></div>` : ''}
@@ -546,8 +548,8 @@
                     <div><span class="text-slate-500">报告类型:</span> <span class="font-medium">${cert.reportType || '校准'}</span></div>
                     ${cert.instrumentName ? `<div><span class="text-slate-500">仪器名称:</span> <span class="font-medium">${cert.instrumentName}</span></div>` : ''}
                     <div class="pt-2 mt-2 border-t border-slate-200">
-                        <span class="text-slate-500">检定/校准结果:</span> 
-                        <span class="font-bold ${cert.reportType === '检定' ? 'text-blue-600' : 'text-emerald-600'}">${resultText}</span>
+                        <span class="text-slate-500">${resultLabel}:</span> 
+                        <span class="font-bold ${isJianDing ? 'text-blue-600' : 'text-emerald-600'}">${resultText}</span>
                     </div>
                 `;
                 document.getElementById('qrInfo').innerHTML = infoHtml;
