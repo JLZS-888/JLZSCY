@@ -556,18 +556,17 @@
             reader.onload = function(e) {
                 try {
                     const data = JSON.parse(e.target.result);
-                    let added = 0, updated = 0;
+                    let added = 0, skipped = 0;
                     
                     if (data.certs && Array.isArray(data.certs)) {
-                        // 合并导入：相同ID更新，不同ID添加
+                        // 合并导入：重复编号跳过，只追加新编号
                         data.certs.forEach(newCert => {
-                            const idx = certs.findIndex(c => c.id && c.id === newCert.id);
-                            if (idx >= 0) {
-                                // 更新现有证书
-                                certs[idx] = newCert;
-                                updated++;
+                            const exists = certs.some(c => c.id && c.id === newCert.id);
+                            if (exists) {
+                                // 重复编号，跳过不更新
+                                skipped++;
                             } else {
-                                // 添加新证书
+                                // 新编号，追加
                                 certs.push(newCert);
                                 added++;
                             }
@@ -584,7 +583,7 @@
                         renderFieldConfig();
                     }
                     
-                    alert(`导入完成！新增 ${added} 条，更新 ${updated} 条，现有 ${certs.length} 条`);
+                    alert(`导入完成！新增 ${added} 条，跳过重复 ${skipped} 条，现有共 ${certs.length} 条`);
                 } catch (err) {
                     alert('导入失败：文件格式错误');
                 }
