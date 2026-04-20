@@ -175,6 +175,9 @@
             factoryNumber: true, model: true
         };
         
+        // 字段顺序（用于 cfgMask 编码）
+        const FIELD_ORDER = ['certId', 'reportType', 'result', 'orderNumber', 'client', 'instrumentName', 'manufacturer', 'calibrationDate', 'expiryDate', 'factoryNumber', 'model'];
+        
         // 查询页基础URL - 固定指向 GitHub Pages
         const QUERY_BASE_URL = 'https://jlzs-888.github.io/JLZSCY/index.html';
         
@@ -415,9 +418,12 @@
             const canvas = document.getElementById('qrCanvas');
             
             // 构建要编码的数据对象（只包含勾选的字段）
-            const dataToEncode = {
-                id: id.startsWith('TEMP_') ? '' : id
-            };
+            const dataToEncode = {};
+            
+            // 证书编号（如果勾选且不是临时ID）
+            if (fieldConfig.certId && !id.startsWith('TEMP_')) {
+                dataToEncode.id = id;
+            }
             
             // 只添加勾选的字段
             if (fieldConfig.reportType) dataToEncode.rt = cert.reportType === '检定' ? 'J' : 'X';
@@ -431,19 +437,8 @@
             if (fieldConfig.factoryNumber && cert.factoryNumber) dataToEncode.fn = cert.factoryNumber;
             if (fieldConfig.model && cert.model) dataToEncode.md = cert.model;
             
-            // 编码字段配置
-            const cfgMask = [
-                fieldConfig.reportType ? '1' : '0',
-                fieldConfig.result ? '1' : '0',
-                fieldConfig.orderNumber ? '1' : '0',
-                fieldConfig.client ? '1' : '0',
-                fieldConfig.instrumentName ? '1' : '0',
-                fieldConfig.manufacturer ? '1' : '0',
-                fieldConfig.calibrationDate ? '1' : '0',
-                fieldConfig.expiryDate ? '1' : '0',
-                fieldConfig.factoryNumber ? '1' : '0',
-                fieldConfig.model ? '1' : '0'
-            ].join('');
+            // 编码字段配置（11位：certId, reportType, result, orderNumber, client, instrumentName, manufacturer, calibrationDate, expiryDate, factoryNumber, model）
+            const cfgMask = FIELD_ORDER.map(f => fieldConfig[f] ? '1' : '0').join('');
             
             // 使用 Base64 编码 JSON 数据（更紧凑且避免 URL 特殊字符问题）
             const jsonStr = JSON.stringify(dataToEncode);
