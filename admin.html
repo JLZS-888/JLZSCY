@@ -478,36 +478,20 @@
             input.value = '';
         }
         
-        // 简化的字段顺序（用于短编码）
-        const SHORT_FIELD_ORDER = ['client', 'certId', 'reportType', 'orderNumber', 'instrumentName', 
-                                   'manufacturer', 'calibrationDate', 'expiryDate', 'factoryNumber', 'model', 'result'];
-        
-        // 短编码：使用数组代替对象，减少数据量
-        function encodeCertShort(cert, id) {
-            const arr = [];
-            // 0: 委托单位
-            arr.push(fieldConfig.client && cert.client ? cert.client : '');
-            // 1: 证书编号
-            arr.push(fieldConfig.certId && !id.startsWith('TEMP_') ? id : '');
-            // 2: 报告类型 (J/X)
-            arr.push(fieldConfig.reportType ? (cert.reportType === '检定' ? 'J' : 'X') : '');
-            // 3: 委托单号
-            arr.push(fieldConfig.orderNumber && cert.orderNumber ? cert.orderNumber : '');
-            // 4: 仪器名称
-            arr.push(fieldConfig.instrumentName && cert.instrumentName ? cert.instrumentName : '');
-            // 5: 制造厂
-            arr.push(fieldConfig.manufacturer && cert.manufacturer ? cert.manufacturer : '');
-            // 6: 检定/校准日期 (压缩格式 YYYYMMDD)
-            arr.push(fieldConfig.calibrationDate && cert.calibrationDate ? cert.calibrationDate.replace(/-/g, '') : '');
-            // 7: 有效期至 (压缩格式 YYYYMMDD)
-            arr.push(fieldConfig.expiryDate && cert.expiryDate ? cert.expiryDate.replace(/-/g, '') : '');
-            // 8: 出厂编号
-            arr.push(fieldConfig.factoryNumber && cert.factoryNumber ? cert.factoryNumber : '');
-            // 9: 规格型号
-            arr.push(fieldConfig.model && cert.model ? cert.model : '');
-            // 10: 结果 (H/B)
-            arr.push(fieldConfig.result ? (cert.reportType === '检定' ? 'H' : 'B') : '');
-            return arr;
+        // 超短编码：只保留核心字段，最大限度减少二维码数据量
+        function encodeCertMinimal(cert, id) {
+            // 只编码：证书编号、报告类型、结果、有效期（4个核心字段）
+            const parts = [];
+            // 0: 证书编号（简化：只取数字部分）
+            const certNum = id.startsWith('TEMP_') ? '' : id.replace(/[^0-9]/g, '');
+            parts.push(certNum || '0');
+            // 1: 报告类型 (J=检定, X=校准)
+            parts.push(cert.reportType === '检定' ? 'J' : 'X');
+            // 2: 结果 (H=合格, B=符合)
+            parts.push(cert.reportType === '检定' ? 'H' : 'B');
+            // 3: 有效期 (YYYYMMDD)
+            parts.push(cert.expiryDate ? cert.expiryDate.replace(/-/g, '') : '');
+            return parts.join(',');
         }
         
         function showQR(id) {
@@ -517,27 +501,31 @@
             const modal = document.getElementById('qrModal');
             const canvas = document.getElementById('qrCanvas');
             
-            // 使用短编码数组
-            const shortData = encodeCertShort(cert, id);
+            // 使用超短编码
+            const encoded = encodeCertMinimal(cert, id);
             
-            // 编码字段配置（11位）
-            const cfgMask = SHORT_FIELD_ORDER.map(f => fieldConfig[f] ? '1' : '0').join('');
+            // 构建URL，添加完整数据用于显示（但二维码只编码核心数据）
+            const displayData = {
+                c: cert.id.startsWith('TEMP_') ? '' : cert.id,
+                t: cert.reportType === '检定' ? 'J' : 'X',
+                r: cert.reportType === '检定' ? 'H' : 'B',
+                e: cert.expiryDate ? cert.expiryDate.replace(/-/g, '') : '',
+                cl: cert.client || '',
+                i: cert.instrumentName || ''
+            };
             
-            // 使用更短的编码：数组转字符串，用 | 分隔
-            const encoded = shortData.map(v => v || '-').join('|');
-            
-            const targetUrl = QUERY_BASE_URL + '?d=' + encodeURIComponent(encoded) + '&cfg=' + cfgMask;
+            const targetUrl = QUERY_BASE_URL + '?m=' + encoded + '&x=' + encodeURIComponent(JSON.stringify(displayData));
             
             console.log('QR URL:', targetUrl);
             console.log('URL length:', targetUrl.length);
             
-            // 优化二维码参数：使用 L 级容错，降低码点密度，提高识别率
+            // 使用更大的二维码尺寸和更低的容错级别，确保缩小后仍可识别
             QRCode.toCanvas(canvas, targetUrl, { 
-                width: 280, 
-                margin: 2, 
+                width: 300, 
+                margin: 1, 
                 color: { dark: '#000000', light: '#FFFFFF' },
-                errorCorrectionLevel: 'L',  // L级容错，最小冗余，最大数据容量
-                scale: 3  // 适中的模块大小
+                errorCorrectionLevel: 'L',  // L级容错，最小冗余
+                scale: 2  // 较小的scale，让码点更稀疏
             }, function(error) {
                 if (error) {
                     console.error('QR生成错误:', error);
