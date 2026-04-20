@@ -414,8 +414,24 @@
             const modal = document.getElementById('qrModal');
             const canvas = document.getElementById('qrCanvas');
             
-            // 编码字段配置为位掩码（1=显示，0=隐藏）
-            // 顺序: reportType, result, orderNumber, client, instrumentName, manufacturer, calibrationDate, expiryDate, factoryNumber, model
+            // 构建要编码的数据对象（只包含勾选的字段）
+            const dataToEncode = {
+                id: id.startsWith('TEMP_') ? '' : id
+            };
+            
+            // 只添加勾选的字段
+            if (fieldConfig.reportType) dataToEncode.rt = cert.reportType === '检定' ? 'J' : 'X';
+            if (fieldConfig.result) dataToEncode.rs = cert.result === '合格' ? 'H' : 'B';
+            if (fieldConfig.orderNumber && cert.orderNumber) dataToEncode.on = cert.orderNumber;
+            if (fieldConfig.client && cert.client) dataToEncode.cl = cert.client;
+            if (fieldConfig.instrumentName && cert.instrumentName) dataToEncode.in = cert.instrumentName;
+            if (fieldConfig.manufacturer && cert.manufacturer) dataToEncode.mf = cert.manufacturer;
+            if (fieldConfig.calibrationDate && cert.calibrationDate) dataToEncode.cd = cert.calibrationDate;
+            if (fieldConfig.expiryDate && cert.expiryDate) dataToEncode.ed = cert.expiryDate;
+            if (fieldConfig.factoryNumber && cert.factoryNumber) dataToEncode.fn = cert.factoryNumber;
+            if (fieldConfig.model && cert.model) dataToEncode.md = cert.model;
+            
+            // 编码字段配置
             const cfgMask = [
                 fieldConfig.reportType ? '1' : '0',
                 fieldConfig.result ? '1' : '0',
@@ -429,31 +445,25 @@
                 fieldConfig.model ? '1' : '0'
             ].join('');
             
-            // 只编码勾选的字段（保持原有顺序，未勾选的为空字符串）
-            const fields = [
-                id.startsWith('TEMP_') ? '' : id,
-                fieldConfig.reportType ? (cert.reportType === '检定' ? 'J' : 'X') : '',
-                fieldConfig.result ? (cert.result === '合格' ? 'H' : 'B') : '',
-                fieldConfig.orderNumber ? (cert.orderNumber || '-') : '',
-                fieldConfig.client ? (cert.client || '-') : '',
-                fieldConfig.instrumentName ? (cert.instrumentName || '-') : '',
-                fieldConfig.manufacturer ? (cert.manufacturer || '-') : '',
-                fieldConfig.calibrationDate ? (cert.calibrationDate || '-') : '',
-                fieldConfig.expiryDate ? (cert.expiryDate || '-') : '',
-                fieldConfig.factoryNumber ? (cert.factoryNumber || '-') : '',
-                fieldConfig.model ? (cert.model || '-') : ''
-            ].join('&');
+            // 使用 Base64 编码 JSON 数据（更紧凑且避免 URL 特殊字符问题）
+            const jsonStr = JSON.stringify(dataToEncode);
+            const base64Encoded = btoa(unescape(encodeURIComponent(jsonStr)));
             
-            const encoded = encodeURIComponent(fields);
-            const targetUrl = QUERY_BASE_URL + '?d=' + encoded + '&cfg=' + cfgMask;
+            const targetUrl = QUERY_BASE_URL + '?d=' + encodeURIComponent(base64Encoded) + '&cfg=' + cfgMask;
+            
+            console.log('QR URL:', targetUrl);
+            console.log('URL length:', targetUrl.length);
             
             QRCode.toCanvas(canvas, targetUrl, { 
                 width: 280, 
                 margin: 2, 
                 color: { dark: '#000000', light: '#FFFFFF' },
-                errorCorrectionLevel: 'M'
+                errorCorrectionLevel: 'L'  // 使用 L 级容错，可存储更多数据
             }, function(error) {
-                if (error) console.error(error);
+                if (error) {
+                    console.error('QR生成错误:', error);
+                    alert('二维码生成失败，请检查数据');
+                }
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
             });

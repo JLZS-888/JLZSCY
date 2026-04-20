@@ -16,8 +16,7 @@
     <div class="max-w-lg mx-auto">
         <!-- 头部 -->
         <div class="bg-[#1e88e5] text-white p-6 rounded-t-3xl shadow-xl text-center">
-            <h1 class="text-2xl font-black tracking-widest">JLZS-CXXY</h1>
-            <p class="text-xs opacity-70 mt-1">计量证书查询系统</p>
+            <h1 class="text-2xl font-black tracking-widest">计量证书查询</h1>
         </div>
         
         <!-- 主内容 -->
@@ -96,7 +95,7 @@
         
         <!-- 底部信息 -->
         <div class="text-center mt-6 text-xs text-slate-400">
-            <p>JLZS-CXXY 计量证书查询系统</p>
+            <p>计量证书查询</p>
         </div>
     </div>
 
@@ -132,9 +131,37 @@
             
             try {
                 const decoded = decodeURIComponent(d);
+                
+                // 尝试新格式：Base64 编码的 JSON
+                if (decoded.startsWith('ey') || decoded.match(/^[A-Za-z0-9+/=]+$/)) {
+                    try {
+                        const jsonStr = decodeURIComponent(escape(atob(decoded)));
+                        const data = JSON.parse(jsonStr);
+                        
+                        const cert = {
+                            id: data.id || '',
+                            reportType: data.rt === 'J' ? '检定' : data.rt === 'X' ? '校准' : '',
+                            result: data.rs === 'H' ? '合格' : data.rs === 'B' ? '符合要求' : '',
+                            orderNumber: data.on || '',
+                            client: data.cl || '',
+                            instrumentName: data.in || '',
+                            manufacturer: data.mf || '',
+                            calibrationDate: data.cd || '',
+                            expiryDate: data.ed || '',
+                            factoryNumber: data.fn || '',
+                            model: data.md || ''
+                        };
+                        
+                        if (!cert.id) return null;
+                        return cert;
+                    } catch (e) {
+                        console.log('新格式解析失败，尝试旧格式');
+                    }
+                }
+                
+                // 旧格式：& 分隔的字段
                 const fields = decoded.split('&');
                 
-                // fields[0] = certId; fields[1..] = 按顺序填入的数据，空字符串表示该字段未勾选
                 const cert = {
                     id: fields[0] || '',
                     reportType: fields.length > 1 ? (fields[1] === 'J' ? '检定' : fields[1] === 'X' ? '校准' : '') : '',
@@ -149,9 +176,7 @@
                     model: fields[10] || ''
                 };
                 
-                // 如果连证书编号都没有，说明数据无效
                 if (!cert.id) return null;
-                
                 return cert;
             } catch (e) {
                 console.error('解析参数失败:', e);
