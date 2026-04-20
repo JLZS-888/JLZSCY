@@ -186,6 +186,9 @@
         <div class="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 text-center">
             <h3 class="font-bold text-lg mb-4 text-slate-800">计量证书查询</h3>
             <canvas id="qrCanvas" class="mx-auto"></canvas>
+            <div id="qrInfo" class="mt-4 text-left text-sm space-y-1 bg-slate-50 p-4 rounded-xl">
+                <!-- 动态显示证书信息 -->
+            </div>
             <button onclick="closeQR()" class="mt-6 w-full bg-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-300 transition">关闭</button>
         </div>
     </div>
@@ -533,6 +536,22 @@
                     console.error('QR生成错误:', error);
                     alert('二维码生成失败，请检查数据');
                 }
+                
+                // 显示证书信息在弹窗中
+                const resultText = cert.reportType === '检定' ? '合格' : '符合要求';
+                const infoHtml = `
+                    <div class="font-bold text-slate-700 border-b pb-2 mb-2">证书信息</div>
+                    ${cert.client ? `<div><span class="text-slate-500">委托单位:</span> <span class="font-medium">${cert.client}</span></div>` : ''}
+                    ${cert.id && !cert.id.startsWith('TEMP_') ? `<div><span class="text-slate-500">证书编号:</span> <span class="font-medium">${cert.id}</span></div>` : ''}
+                    <div><span class="text-slate-500">报告类型:</span> <span class="font-medium">${cert.reportType || '校准'}</span></div>
+                    ${cert.instrumentName ? `<div><span class="text-slate-500">仪器名称:</span> <span class="font-medium">${cert.instrumentName}</span></div>` : ''}
+                    <div class="pt-2 mt-2 border-t border-slate-200">
+                        <span class="text-slate-500">检定/校准结果:</span> 
+                        <span class="font-bold ${cert.reportType === '检定' ? 'text-blue-600' : 'text-emerald-600'}">${resultText}</span>
+                    </div>
+                `;
+                document.getElementById('qrInfo').innerHTML = infoHtml;
+                
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
             });
