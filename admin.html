@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>证书管理 - 离线版</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+</head>
+<body class="bg-slate-50 p-6 min-h-screen">
+    <div class="max-w-5xl mx-auto">
+        <!-- 数据提示 -->
+        <div class="bg-amber-500 text-white p-4 rounded-2xl mb-6 shadow-lg flex justify-between items-center">
+            <div>
+                <h3 class="font-bold text-base flex items-center">
+                    <span class="mr-2">💾</span> 本地存储模式
+                </h3>
+                <p class="text-xs opacity-80 mt-1">数据存储在浏览器本地，清除浏览器数据会丢失</p>
+            </div>
+            <div id="syncStatus" class="text-xs bg-amber-600 px-3 py-1 rounded-full font-bold">离线可用</div>
+        </div>
+
+        <div class="bg-[#1e88e5] text-white p-6 rounded-t-2xl shadow-xl flex justify-between items-center">
+            <h1 class="text-xl font-bold uppercase tracking-widest">JLZS-CXXY 管理后台 <span class="text-xs font-normal opacity-50 ml-2">离线版</span></h1>
+            <div id="saveStatus" class="text-[10px] bg-blue-800 px-3 py-1 rounded-full font-bold">准备就绪</div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 mt-8">
+            <!-- 显隐配置 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-blue-100">
+                    <h2 class="font-bold text-slate-800 mb-4 border-b pb-2 text-sm">查询页字段显示设置</h2>
+                    <div id="fieldConfig" class="space-y-2"></div>
+                    <button onclick="saveConfig()" class="w-full mt-4 bg-emerald-500 text-white py-3 rounded-xl font-bold hover:bg-emerald-600 transition">保存配置</button>
+                </div>
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-blue-100 mt-6">
+                    <h2 class="font-bold text-slate-800 mb-4 border-b pb-2 text-sm">数据统计</h2>
+                    <div id="statsPanel" class="text-center">
+                        <div class="text-4xl font-black text-blue-600" id="totalCount">0</div>
+                        <div class="text-xs text-slate-400 mt-1">证书总数</div>
+                    </div>
+                    <div class="mt-4 pt-4 border-t">
+                        <button onclick="exportData()" class="w-full bg-blue-500 text-white py-2 rounded-lg text-sm font-bold hover:bg-blue-600 mb-2">导出数据(JSON)</button>
+                        <label class="block w-full bg-slate-200 text-slate-600 py-2 rounded-lg text-sm font-bold hover:bg-slate-300 cursor-pointer text-center">
+                            导入数据
+                            <input type="file" accept=".json" class="hidden" onchange="importData(this)">
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 录入面板 -->
+            <div class="lg:col-span-2 space-y-6">
+                <!-- Word 识别区 -->
+                <div class="bg-indigo-50 p-6 rounded-2xl border-2 border-dashed border-indigo-200 text-center">
+                    <h2 class="font-bold text-indigo-700 mb-2 flex items-center justify-center">
+                        <span class="mr-2">📄</span> Word 证书内容识别
+                    </h2>
+                    <p class="text-[10px] text-indigo-400 mb-4">上传 .docx 文档，自动提取信息填表</p>
+                    <input type="file" id="wordInput" accept=".docx" class="hidden" onchange="handleWordImport(this)">
+                    <button onclick="document.getElementById('wordInput').click()" id="wordBtn" class="bg-indigo-600 text-white px-10 py-3 rounded-xl font-bold shadow-md hover:bg-indigo-700 transition active:scale-95">
+                        上传 Word 文档识别
+                    </button>
+                    <div id="wordStatus" class="mt-3 text-xs text-indigo-500 hidden font-bold">正在解析文档内容...</div>
+                </div>
+
+                <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
+                    <h2 id="formTitle" class="font-bold text-slate-800 mb-6 border-b pb-2 text-sm uppercase">📝 录入证书详情</h2>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 text-left">
+                        <div class="col-span-2">
+                            <label class="text-xs font-bold text-slate-500 mb-1 block ml-1">证书编号 (Certificate No.) <span class="text-emerald-500">选填</span></label>
+                            <input type="text" id="certNo" placeholder="选填，不填也可保存" class="w-full p-4 border-2 border-slate-100 rounded-2xl font-bold uppercase focus:border-emerald-500 outline-none text-slate-800 text-lg shadow-inner">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block ml-1">报告类型</label>
+                            <select id="reportType" class="p-3 border rounded-xl w-full outline-none focus:border-emerald-500 bg-slate-50/50" onchange="updateDateLabel(); updateResult();">
+                                <option value="校准">校准 (默认)</option>
+                                <option value="检定">检定</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block ml-1">检定/校准结果</label>
+                            <input type="text" id="result" readonly class="w-full p-3 border rounded-xl bg-slate-100 text-emerald-600 font-bold cursor-not-allowed" value="符合要求">
+                        </div>
+                        <div class="col-span-2 grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div>
+                                <label id="dateLabel" class="text-xs font-bold text-slate-500 mb-1 block ml-1">校准日期</label>
+                                <input type="date" id="date" class="p-3 border rounded-xl w-full outline-none focus:border-emerald-500 bg-slate-50/50">
+                            </div>
+                            <div>
+                                <label class="text-xs font-bold text-slate-500 mb-1 block ml-1">有效期限</label>
+                                <select id="validityPeriod" class="p-3 border rounded-xl w-full outline-none focus:border-emerald-500 bg-slate-50/50">
+                                    <option value="12">1年(默认)</option>
+                                    <option value="24">2年</option>
+                                    <option value="36">3年</option>
+                                    <option value="6">半年</option>
+                                    <option value="3">3个月</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block ml-1">有效期至</label>
+                            <input type="text" id="exp" placeholder="选日期和期限后自动计算" readonly class="w-full p-3 border rounded-xl outline-none bg-slate-100/50 text-slate-500">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block ml-1">委托单号</label>
+                            <input type="text" id="orderNo" placeholder="自动生成" class="w-full p-3 border rounded-xl outline-none focus:border-emerald-500 bg-slate-50/50">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block ml-1">委托单位</label>
+                            <input type="text" id="client" list="clientList" placeholder="输入或Word识别" class="w-full p-3 border rounded-xl outline-none focus:border-emerald-500 bg-slate-50/50">
+                            <datalist id="clientList"></datalist>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block ml-1">仪器名称</label>
+                            <input type="text" id="inst" list="instList" placeholder="输入或Word识别" class="w-full p-3 border rounded-xl outline-none focus:border-emerald-500 bg-slate-50/50">
+                            <datalist id="instList"></datalist>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block ml-1">制造厂</label>
+                            <input type="text" id="manu" list="manuList" placeholder="输入或Word识别" class="w-full p-3 border rounded-xl outline-none focus:border-emerald-500 bg-slate-50/50">
+                            <datalist id="manuList"></datalist>
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block ml-1">出厂编号</label>
+                            <input type="text" id="fact" placeholder="选填" class="w-full p-3 border rounded-xl outline-none focus:border-emerald-500 bg-slate-50/50">
+                        </div>
+                        <div>
+                            <label class="text-xs font-bold text-slate-500 mb-1 block ml-1">规格型号</label>
+                            <input type="text" id="model" placeholder="选填" class="w-full p-3 border rounded-xl outline-none focus:border-emerald-500 bg-slate-50/50">
+                        </div>
+                    </div>
+                    <div class="flex gap-4 mt-8">
+                        <button onclick="saveCert()" class="flex-1 bg-emerald-500 text-white py-4 rounded-2xl font-bold shadow-md hover:bg-emerald-600 transition active:scale-95">
+                            💾 保存证书
+                        </button>
+                        <button onclick="resetForm()" class="px-6 bg-slate-200 text-slate-600 py-4 rounded-2xl font-bold hover:bg-slate-300 transition">
+                            🔄 重置
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 证书列表 -->
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="font-bold text-slate-800 text-sm uppercase">📚 证书列表</h2>
+                        <button onclick="loadCerts()" class="px-4 py-2 bg-blue-500 text-white rounded-lg text-sm font-bold hover:bg-blue-600">🔄 刷新</button>
+                    </div>
+                    <div id="certList" class="space-y-2 max-h-80 overflow-y-auto"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 二维码弹窗 -->
+    <div id="qrModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
+        <div class="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 text-center">
+            <h3 class="font-bold text-lg mb-4 text-slate-800">分享查询链接</h3>
+            <canvas id="qrCanvas" class="mx-auto"></canvas>
+            <div class="mt-4 text-xs text-slate-500 break-all" id="qrUrl"></div>
+            <button id="copyBtn" class="mt-4 w-full bg-blue-500 text-white py-3 rounded-xl font-bold hover:bg-blue-600 transition">复制访问链接</button>
+            <button onclick="closeQR()" class="mt-3 text-slate-400 text-sm">关闭</button>
+        </div>
+    </div>
+
+    <script>
+        // 本地存储键名
+        const STORAGE_KEY = 'jlzs_certs';
+        const CONFIG_KEY = 'jlzs_config';
+        
+        let certs = [];
+        let fieldConfig = {
+            certId: true, reportType: true, result: true,
+            orderNumber: true, client: true, instrumentName: true,
+            manufacturer: true, calibrationDate: true, expiryDate: true,
+            factoryNumber: true, model: true
+        };
+        
+        // 查询页基础URL - 部署后替换为实际URL
+        const QUERY_BASE_URL = window.location.origin + window.location.pathname.replace('admin.html', 'index.html');
+        
+        // 从localStorage加载数据
+        function loadCerts() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            certs = stored ? JSON.parse(stored) : [];
+            renderList();
+            updateStats();
+            updateSuggestions();
+        }
+        
+        // 保存到localStorage
+        function saveToStorage() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(certs));
+        }
+        
+        // 加载配置
+        function loadConfig() {
+            const stored = localStorage.getItem(CONFIG_KEY);
+            if (stored) {
+                fieldConfig = JSON.parse(stored);
+            }
+            renderFieldConfig();
+        }
+        
+        // 保存配置
+        function saveConfig() {
+            localStorage.setItem(CONFIG_KEY, JSON.stringify(fieldConfig));
+            alert('配置已保存');
+        }
+        
+        function renderFieldConfig() {
+            const fields = ['certId', 'reportType', 'result', 'orderNumber', 'client', 'instrumentName', 'manufacturer', 'calibrationDate', 'expiryDate', 'factoryNumber', 'model'];
+            const labels = { 
+                certId: '证书编号', reportType: '报告类型', result: '检定/校准结果',
+                orderNumber: '委托单号', client: '委托单位', instrumentName: '仪器名称', 
+                manufacturer: '制造厂', calibrationDate: '校准日期', expiryDate: '有效期至', 
+                factoryNumber: '出厂编号', model: '规格型号' 
+            };
+            let html = '';
+            for (let f of fields) {
+                const checked = fieldConfig[f] !== false;
+                html += `
+                    <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer">
+                        <input type="checkbox" id="cfg_${f}" ${checked ? 'checked' : ''} onchange="fieldConfig['${f}'] = this.checked" class="w-4 h-4 accent-blue-500">
+                        <span class="text-sm text-slate-600">${labels[f]}</span>
+                    </label>`;
+            }
+            document.getElementById('fieldConfig').innerHTML = html;
+        }
+        
+        function updateStats() {
+            document.getElementById('totalCount').textContent = certs.length;
+        }
+        
+        function updateSuggestions() {
+            const clients = [...new Set(certs.map(c => c.client).filter(Boolean))];
+            const insts = [...new Set(certs.map(c => c.instrumentName).filter(Boolean))];
+            const manus = [...new Set(certs.map(c => c.manufacturer).filter(Boolean))];
+            
+            ['clientList', 'instList', 'manuList'].forEach(id => document.getElementById(id).innerHTML = '');
+            clients.forEach(v => { const opt = document.createElement('option'); opt.value = v; document.getElementById('clientList').appendChild(opt); });
+            insts.forEach(v => { const opt = document.createElement('option'); opt.value = v; document.getElementById('instList').appendChild(opt); });
+            manus.forEach(v => { const opt = document.createElement('option'); opt.value = v; document.getElementById('manuList').appendChild(opt); });
+        }
+        
+        function generateOrderNo() {
+            const date = document.getElementById('date').value;
+            if (date) {
+                const d = new Date(date);
+                const y = d.getFullYear().toString().slice(-2);
+                const m = (d.getMonth() + 1).toString().padStart(2, '0');
+                document.getElementById('orderNo').value = `${y}${m}WD-`;
+            }
+        }
+        
+        function calculateExpiryDate() {
+            const date = document.getElementById('date').value;
+            const period = parseInt(document.getElementById('validityPeriod').value) || 12;
+            if (date) {
+                const d = new Date(date);
+                d.setMonth(d.getMonth() + period);
+                d.setDate(d.getDate() - 1);
+                document.getElementById('exp').value = d.toISOString().split('T')[0];
+            }
+        }
+        
+        function updateDateLabel() {
+            const type = document.getElementById('reportType').value;
+            document.getElementById('dateLabel').textContent = type === '检定' ? '检定日期' : '校准日期';
+        }
+        
+        function updateResult() {
+            const type = document.getElementById('reportType').value;
+            const resultInput = document.getElementById('result');
+            if (type === '检定') {
+                resultInput.value = '合格';
+                resultInput.classList.remove('text-emerald-600');
+                resultInput.classList.add('text-blue-600');
+            } else {
+                resultInput.value = '符合要求';
+                resultInput.classList.remove('text-blue-600');
+                resultInput.classList.add('text-emerald-600');
+            }
+        }
+        
+        function saveCert() {
+            const certNo = document.getElementById('certNo').value.trim().toUpperCase();
+            const id = certNo || 'TEMP_' + Date.now();
+            
+            const certData = {
+                id: id,
+                reportType: document.getElementById('reportType').value,
+                result: document.getElementById('result').value,
+                orderNumber: document.getElementById('orderNo').value,
+                client: document.getElementById('client').value,
+                instrumentName: document.getElementById('inst').value,
+                manufacturer: document.getElementById('manu').value,
+                calibrationDate: document.getElementById('date').value,
+                expiryDate: document.getElementById('exp').value,
+                factoryNumber: document.getElementById('fact').value,
+                model: document.getElementById('model').value,
+                createdAt: new Date().toISOString()
+            };
+            
+            // 检查是否已存在，更新或添加
+            const existingIndex = certs.findIndex(c => c.id === id);
+            if (existingIndex >= 0) {
+                certs[existingIndex] = certData;
+            } else {
+                certs.unshift(certData);
+            }
+            
+            saveToStorage();
+            renderList();
+            updateStats();
+            updateSuggestions();
+            alert('保存成功！');
+            resetForm();
+            document.getElementById('saveStatus').textContent = '已保存';
+            setTimeout(() => document.getElementById('saveStatus').textContent = '准备就绪', 2000);
+        }
+        
+        function resetForm() {
+            document.getElementById('certNo').disabled = false;
+            document.getElementById('certNo').value = '';
+            document.getElementById('orderNo').value = '';
+            document.getElementById('client').value = '';
+            document.getElementById('inst').value = '';
+            document.getElementById('manu').value = '';
+            document.getElementById('date').value = '';
+            document.getElementById('exp').value = '';
+            document.getElementById('fact').value = '';
+            document.getElementById('model').value = '';
+            document.getElementById('reportType').value = '校准';
+            document.getElementById('validityPeriod').value = '12';
+            updateDateLabel();
+            updateResult();
+            document.getElementById('formTitle').innerText = '📝 录入证书详情';
+        }
+        
+        function renderList() {
+            let html = '';
+            certs.forEach(cert => {
+                const displayId = cert.id.startsWith('TEMP_') ? '(无编号)' : cert.id;
+                html += `
+                    <div class="flex items-center justify-between p-4 bg-slate-50 rounded-xl hover:bg-slate-100 transition">
+                        <div class="flex-1">
+                            <div class="font-bold text-slate-800 text-sm">${displayId}</div>
+                            <div class="text-xs text-slate-400 mt-1">${cert.client || '-'} · ${cert.instrumentName || '-'}</div>
+                        </div>
+                        <div class="flex gap-2">
+                            <button onclick="showQR('${cert.id}')" class="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 transition" title="生成二维码">📱</button>
+                            <button onclick="editCert('${cert.id}')" class="p-2 bg-emerald-100 text-emerald-600 rounded-lg hover:bg-emerald-200 transition" title="编辑">✏️</button>
+                            <button onclick="delCert('${cert.id}')" class="p-2 bg-red-100 text-red-500 rounded-lg hover:bg-red-200 transition" title="删除">🗑️</button>
+                        </div>
+                    </div>`;
+            });
+            document.getElementById('certList').innerHTML = html || '<div class="text-center text-slate-400 py-8">暂无证书数据</div>';
+        }
+        
+        async function handleWordImport(input) {
+            const file = input.files[0];
+            if (!file) return;
+            
+            document.getElementById('wordStatus').classList.remove('hidden');
+            document.getElementById('wordStatus').textContent = '正在解析文档内容...';
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                const text = result.value;
+
+                const patterns = {
+                    certNo: /证书编号[：:]\s*([A-Z0-9\-]+)/i,
+                    client: /(?:委托单位|送检单位|客户)[：:]\s*(.+?)(?:\n|$)/,
+                    instrumentName: /(?:仪器名称|设备名称|被检器具)[：:]\s*(.+?)(?:\n|$)/,
+                    manufacturer: /(?:制造厂|生产厂家)[：:]\s*(.+?)(?:\n|$)/,
+                    calibrationDate: /(?:校准日期|检定日期)[：:]\s*(\d{4}[-/]\d{1,2}[-/]\d{1,2})/,
+                    factoryNumber: /(?:出厂编号|出厂号)[：:]\s*(.+?)(?:\n|$)/,
+                    model: /(?:规格型号|型号)[：:]\s*(.+?)(?:\n|$)/
+                };
+
+                const data = {};
+                for (let key in patterns) {
+                    const match = text.match(patterns[key]);
+                    if (match) data[key] = match[1].trim();
+                }
+
+                if (data.certNo) document.getElementById('certNo').value = data.certNo;
+                if (data.client) document.getElementById('client').value = data.client;
+                if (data.instrumentName) document.getElementById('inst').value = data.instrumentName;
+                if (data.manufacturer) document.getElementById('manu').value = data.manufacturer;
+                if (data.calibrationDate) {
+                    const formatted = data.calibrationDate.replace(/\//g, '-');
+                    document.getElementById('date').value = formatted;
+                    generateOrderNo();
+                    calculateExpiryDate();
+                }
+                if (data.factoryNumber) document.getElementById('fact').value = data.factoryNumber;
+                if (data.model) document.getElementById('model').value = data.model;
+
+                document.getElementById('wordStatus').textContent = '✓ 识别完成，请检查数据';
+                setTimeout(() => document.getElementById('wordStatus').classList.add('hidden'), 3000);
+            } catch (e) {
+                document.getElementById('wordStatus').textContent = '✗ 解析失败';
+                console.error(e);
+            }
+            input.value = '';
+        }
+        
+        function showQR(id) {
+            const cert = certs.find(c => c.id === id);
+            if (!cert) return alert('证书不存在');
+            
+            const modal = document.getElementById('qrModal');
+            const canvas = document.getElementById('qrCanvas');
+            const copyBtn = document.getElementById('copyBtn');
+            const qrUrlDiv = document.getElementById('qrUrl');
+            
+            // 编码数据到URL参数
+            const fields = [
+                id.startsWith('TEMP_') ? '' : id,
+                cert.reportType === '检定' ? 'J' : 'X',
+                cert.result === '合格' ? 'H' : 'B',
+                cert.orderNumber || '-',
+                cert.client || '-',
+                cert.instrumentName || '-',
+                cert.manufacturer || '-',
+                cert.calibrationDate || '-',
+                cert.expiryDate || '-',
+                cert.factoryNumber || '-',
+                cert.model || '-'
+            ].join('&');
+            
+            const encoded = encodeURIComponent(fields);
+            const targetUrl = QUERY_BASE_URL + '?d=' + encoded;
+            
+            qrUrlDiv.textContent = targetUrl;
+            
+            copyBtn.onclick = function() {
+                navigator.clipboard.writeText(targetUrl).then(() => {
+                    const oldText = copyBtn.innerText;
+                    copyBtn.innerText = "✓ 已复制";
+                    setTimeout(() => { copyBtn.innerText = "复制访问链接"; }, 2000);
+                });
+            };
+            
+            QRCode.toCanvas(canvas, targetUrl, { 
+                width: 280, 
+                margin: 2, 
+                color: { dark: '#000000', light: '#FFFFFF' },
+                errorCorrectionLevel: 'M'
+            }, function(error) {
+                if (error) console.error(error);
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            });
+        }
+        
+        function closeQR() {
+            const modal = document.getElementById('qrModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+        
+        function editCert(id) {
+            const cert = certs.find(c => c.id === id);
+            if (!cert) return;
+
+            document.getElementById('reportType').value = cert.reportType || '校准';
+            updateDateLabel();
+            updateResult();
+            document.getElementById('certNo').value = cert.id.startsWith('TEMP_') ? '' : cert.id;
+            document.getElementById('orderNo').value = cert.orderNumber || '';
+            document.getElementById('client').value = cert.client || '';
+            document.getElementById('inst').value = cert.instrumentName || '';
+            document.getElementById('manu').value = cert.manufacturer || '';
+            document.getElementById('date').value = cert.calibrationDate || '';
+            document.getElementById('exp').value = cert.expiryDate || '';
+            document.getElementById('fact').value = cert.factoryNumber || '';
+            document.getElementById('model').value = cert.model || '';
+
+            document.getElementById('formTitle').innerText = '✏️ 修改证书详情';
+            document.getElementById('certNo').disabled = true;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+        
+        function delCert(id) {
+            if(!confirm("删除 " + id + " 吗？")) return;
+            certs = certs.filter(c => c.id !== id);
+            saveToStorage();
+            renderList();
+            updateStats();
+        }
+        
+        function exportData() {
+            const data = {
+                certs: certs,
+                config: fieldConfig,
+                exportedAt: new Date().toISOString()
+            };
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `jlzs-backup-${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+        
+        function importData(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = JSON.parse(e.target.result);
+                    if (data.certs) {
+                        certs = data.certs;
+                        saveToStorage();
+                        renderList();
+                        updateStats();
+                        updateSuggestions();
+                    }
+                    if (data.config) {
+                        fieldConfig = data.config;
+                        localStorage.setItem(CONFIG_KEY, JSON.stringify(fieldConfig));
+                        renderFieldConfig();
+                    }
+                    alert('导入成功！共 ' + certs.length + ' 条证书');
+                } catch (err) {
+                    alert('导入失败：文件格式错误');
+                }
+            };
+            reader.readAsText(file);
+            input.value = '';
+        }
+        
+        window.onload = async function() {
+            loadConfig();
+            loadCerts();
+            document.getElementById('date').addEventListener('change', function() {
+                generateOrderNo();
+                calculateExpiryDate();
+            });
+            document.getElementById('validityPeriod').addEventListener('change', calculateExpiryDate);
+        };
+    </script>
+</body>
+</html>

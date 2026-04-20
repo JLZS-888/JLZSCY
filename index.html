@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>证书查询 - JLZS-CXXY</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            .print-only { display: block !important; }
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen p-4">
+    <div class="max-w-lg mx-auto">
+        <!-- 头部 -->
+        <div class="bg-[#1e88e5] text-white p-6 rounded-t-3xl shadow-xl text-center">
+            <h1 class="text-2xl font-black tracking-widest">JLZS-CXXY</h1>
+            <p class="text-xs opacity-70 mt-1">计量证书查询系统</p>
+        </div>
+        
+        <!-- 主内容 -->
+        <div class="bg-white p-6 rounded-b-3xl shadow-xl" id="contentArea">
+            <!-- 加载中 -->
+            <div id="loading" class="text-center py-12">
+                <div class="text-4xl mb-4">📄</div>
+                <p class="text-slate-400">加载中...</p>
+            </div>
+            
+            <!-- 错误提示 -->
+            <div id="error" class="hidden text-center py-12">
+                <div class="text-4xl mb-4">❌</div>
+                <p class="text-red-500 font-bold">未找到证书信息</p>
+                <p class="text-slate-400 text-sm mt-2">请检查二维码是否正确</p>
+            </div>
+            
+            <!-- 证书内容 -->
+            <div id="certInfo" class="hidden space-y-4">
+                <!-- 证书编号 -->
+                <div class="text-center pb-4 border-b border-slate-100">
+                    <div class="text-xs text-slate-400">证书编号</div>
+                    <div id="certId" class="text-2xl font-black text-blue-600 tracking-wider"></div>
+                </div>
+                
+                <!-- 信息卡片 -->
+                <div class="grid grid-cols-2 gap-3 text-sm">
+                    <div class="bg-slate-50 p-3 rounded-xl">
+                        <div class="text-xs text-slate-400">报告类型</div>
+                        <div id="reportType" class="font-bold text-slate-700"></div>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-xl">
+                        <div class="text-xs text-slate-400">检定/校准结果</div>
+                        <div id="result" class="font-bold"></div>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-xl col-span-2">
+                        <div class="text-xs text-slate-400">委托单位</div>
+                        <div id="client" class="font-bold text-slate-700"></div>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-xl col-span-2">
+                        <div class="text-xs text-slate-400">仪器名称</div>
+                        <div id="instrumentName" class="font-bold text-slate-700"></div>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-xl">
+                        <div class="text-xs text-slate-400">制造厂</div>
+                        <div id="manufacturer" class="font-bold text-slate-700"></div>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-xl">
+                        <div class="text-xs text-slate-400">规格型号</div>
+                        <div id="model" class="font-bold text-slate-700"></div>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-xl">
+                        <div class="text-xs text-slate-400">出厂编号</div>
+                        <div id="factoryNumber" class="font-bold text-slate-700"></div>
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-xl">
+                        <div class="text-xs text-slate-400">委托单号</div>
+                        <div id="orderNumber" class="font-bold text-slate-700"></div>
+                    </div>
+                    <div class="bg-emerald-50 p-3 rounded-xl">
+                        <div class="text-xs text-emerald-400">校准日期</div>
+                        <div id="calibrationDate" class="font-bold text-emerald-600"></div>
+                    </div>
+                    <div class="bg-red-50 p-3 rounded-xl">
+                        <div class="text-xs text-red-400">有效期至</div>
+                        <div id="expiryDate" class="font-bold text-red-600"></div>
+                    </div>
+                </div>
+                
+                <!-- 有效状态 -->
+                <div id="validStatus" class="mt-4 p-4 rounded-xl text-center font-bold"></div>
+                
+                <!-- 打印按钮 -->
+                <button onclick="window.print()" class="no-print w-full mt-4 bg-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-300 transition">
+                    🖨️ 打印证书
+                </button>
+            </div>
+        </div>
+        
+        <!-- 底部信息 -->
+        <div class="text-center mt-6 text-xs text-slate-400">
+            <p>数据已编码在二维码中，无需网络验证</p>
+            <p class="mt-1">JLZS-CXXY 计量证书查询系统</p>
+        </div>
+    </div>
+
+    <script>
+        // 字段配置（可由URL参数控制）
+        const defaultFieldConfig = {
+            certId: true, reportType: true, result: true,
+            orderNumber: true, client: true, instrumentName: true,
+            manufacturer: true, calibrationDate: true, expiryDate: true,
+            factoryNumber: true, model: true
+        };
+        
+        // 解析URL参数
+        function parseUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const d = params.get('d');
+            if (!d) return null;
+            
+            try {
+                const decoded = decodeURIComponent(d);
+                const fields = decoded.split('&');
+                
+                if (fields.length < 10) return null;
+                
+                const cert = {
+                    id: fields[0] || '',
+                    reportType: fields[1] === 'J' ? '检定' : '校准',
+                    result: fields[2] === 'H' ? '合格' : '符合要求',
+                    orderNumber: fields[3] === '-' ? '' : fields[3],
+                    client: fields[4] === '-' ? '' : fields[4],
+                    instrumentName: fields[5] === '-' ? '' : fields[5],
+                    manufacturer: fields[6] === '-' ? '' : fields[6],
+                    calibrationDate: fields[7] === '-' ? '' : fields[7],
+                    expiryDate: fields[8] === '-' ? '' : fields[8],
+                    factoryNumber: fields[9] === '-' ? '' : fields[9],
+                    model: fields[10] === '-' ? '' : fields[10]
+                };
+                
+                return cert;
+            } catch (e) {
+                console.error('解析参数失败:', e);
+                return null;
+            }
+        }
+        
+        // 检查证书是否有效
+        function checkValidity(expiryDate) {
+            if (!expiryDate) return null;
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            const expiry = new Date(expiryDate);
+            return expiry >= today;
+        }
+        
+        // 渲染证书信息
+        function renderCert(cert) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('certInfo').classList.remove('hidden');
+            
+            // 证书编号
+            document.getElementById('certId').textContent = cert.id || '(无编号)';
+            
+            // 基本信息
+            document.getElementById('reportType').textContent = cert.reportType;
+            
+            // 结果
+            const resultEl = document.getElementById('result');
+            resultEl.textContent = cert.result;
+            if (cert.result === '合格') {
+                resultEl.classList.add('text-blue-600');
+            } else {
+                resultEl.classList.add('text-emerald-600');
+            }
+            
+            // 其他字段
+            document.getElementById('client').textContent = cert.client || '-';
+            document.getElementById('instrumentName').textContent = cert.instrumentName || '-';
+            document.getElementById('manufacturer').textContent = cert.manufacturer || '-';
+            document.getElementById('model').textContent = cert.model || '-';
+            document.getElementById('factoryNumber').textContent = cert.factoryNumber || '-';
+            document.getElementById('orderNumber').textContent = cert.orderNumber || '-';
+            document.getElementById('calibrationDate').textContent = cert.calibrationDate || '-';
+            document.getElementById('expiryDate').textContent = cert.expiryDate || '-';
+            
+            // 有效状态
+            const validStatus = document.getElementById('validStatus');
+            const isValid = checkValidity(cert.expiryDate);
+            
+            if (isValid === null) {
+                validStatus.textContent = '有效期未知';
+                validStatus.className = 'mt-4 p-4 rounded-xl text-center font-bold bg-slate-100 text-slate-600';
+            } else if (isValid) {
+                const daysLeft = Math.ceil((new Date(cert.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
+                validStatus.textContent = `✓ 证书有效（剩余 ${daysLeft} 天）`;
+                validStatus.className = 'mt-4 p-4 rounded-xl text-center font-bold bg-emerald-100 text-emerald-600';
+            } else {
+                validStatus.textContent = '⚠ 证书已过期';
+                validStatus.className = 'mt-4 p-4 rounded-xl text-center font-bold bg-red-100 text-red-600';
+            }
+        }
+        
+        // 显示错误
+        function showError() {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('error').classList.remove('hidden');
+        }
+        
+        // 初始化
+        window.onload = function() {
+            const cert = parseUrlParams();
+            if (cert) {
+                renderCert(cert);
+            } else {
+                showError();
+            }
+        };
+    </script>
+</body>
+</html>
