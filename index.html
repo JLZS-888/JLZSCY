@@ -44,45 +44,60 @@
                 
                 <!-- 信息卡片 -->
                 <div class="grid grid-cols-2 gap-3 text-sm">
-                    <div class="bg-slate-50 p-3 rounded-xl">
-                        <div class="text-xs text-slate-400">报告类型</div>
-                        <div id="reportType" class="font-bold text-slate-700"></div>
-                    </div>
-                    <div class="bg-slate-50 p-3 rounded-xl">
-                        <div class="text-xs text-slate-400" id="resultLabel">检定/校准结果</div>
-                        <div id="result" class="font-bold"></div>
-                    </div>
+                    <!-- 1. 委托单位（第一行，全宽） -->
                     <div class="bg-slate-50 p-3 rounded-xl col-span-2">
                         <div class="text-xs text-slate-400">委托单位</div>
                         <div id="client" class="font-bold text-slate-700"></div>
                     </div>
+                    <!-- 2. 证书编号 -->
+                    <div class="bg-slate-50 p-3 rounded-xl">
+                        <div class="text-xs text-slate-400">证书编号</div>
+                        <div id="certIdInline" class="font-bold text-slate-700"></div>
+                    </div>
+                    <!-- 3. 报告类型 -->
+                    <div class="bg-slate-50 p-3 rounded-xl">
+                        <div class="text-xs text-slate-400">报告类型</div>
+                        <div id="reportType" class="font-bold text-slate-700"></div>
+                    </div>
+                    <!-- 4. 仪器名称 -->
                     <div class="bg-slate-50 p-3 rounded-xl col-span-2">
                         <div class="text-xs text-slate-400">仪器名称</div>
                         <div id="instrumentName" class="font-bold text-slate-700"></div>
                     </div>
+                    <!-- 5. 制造厂 -->
                     <div class="bg-slate-50 p-3 rounded-xl">
                         <div class="text-xs text-slate-400">制造厂</div>
                         <div id="manufacturer" class="font-bold text-slate-700"></div>
                     </div>
+                    <!-- 6. 规格型号 -->
                     <div class="bg-slate-50 p-3 rounded-xl">
                         <div class="text-xs text-slate-400">规格型号</div>
                         <div id="model" class="font-bold text-slate-700"></div>
                     </div>
+                    <!-- 7. 出厂编号 -->
                     <div class="bg-slate-50 p-3 rounded-xl">
                         <div class="text-xs text-slate-400">出厂编号</div>
                         <div id="factoryNumber" class="font-bold text-slate-700"></div>
                     </div>
+                    <!-- 8. 委托单号 -->
                     <div class="bg-slate-50 p-3 rounded-xl">
                         <div class="text-xs text-slate-400">委托单号</div>
                         <div id="orderNumber" class="font-bold text-slate-700"></div>
                     </div>
+                    <!-- 9. 检定/校准日期 -->
                     <div class="bg-emerald-50 p-3 rounded-xl">
                         <div class="text-xs text-emerald-400" id="dateLabel">校准日期</div>
                         <div id="calibrationDate" class="font-bold text-emerald-600"></div>
                     </div>
+                    <!-- 10. 有效期至 -->
                     <div class="bg-red-50 p-3 rounded-xl">
                         <div class="text-xs text-red-400">有效期至</div>
                         <div id="expiryDate" class="font-bold text-red-600"></div>
+                    </div>
+                    <!-- 11. 检定/校准结果（最后一行，全宽突出显示） -->
+                    <div class="bg-blue-50 p-4 rounded-xl col-span-2 border-2 border-blue-100">
+                        <div class="text-xs text-blue-400" id="resultLabel">检定/校准结果</div>
+                        <div id="result" class="font-bold text-xl"></div>
                     </div>
                 </div>
                 
@@ -238,12 +253,15 @@
             document.getElementById('loading').classList.add('hidden');
             document.getElementById('certInfo').classList.remove('hidden');
             
-            // 证书编号（根据配置显示/隐藏）
+            // 证书编号（根据配置显示/隐藏）- 顶部大标题
             const certIdContainer = document.getElementById('certId').closest('.text-center');
             if (certIdContainer) {
                 certIdContainer.style.display = fieldConfig.certId ? 'block' : 'none';
             }
             document.getElementById('certId').textContent = cert.id || '(无编号)';
+            
+            // 证书编号（信息卡片内）
+            setFieldVisibility('certIdInline', fieldConfig.certId, cert.id || '(无编号)');
             
             // 根据配置显示/隐藏字段
             setFieldVisibility('reportType', fieldConfig.reportType, cert.reportType);
