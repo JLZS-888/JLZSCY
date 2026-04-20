@@ -541,11 +541,11 @@
                 const isJianDing = cert.reportType === '检定';
                 const resultLabel = isJianDing ? '检定结果' : '校准结果';
                 const resultText = isJianDing ? '合格' : '符合要求';
+                // 只显示对应类型的信息，不显示"报告类型"字段，避免"检定/校准"同时出现
                 const infoHtml = `
                     <div class="font-bold text-slate-700 border-b pb-2 mb-2">证书信息</div>
                     ${cert.client ? `<div><span class="text-slate-500">委托单位:</span> <span class="font-medium">${cert.client}</span></div>` : ''}
                     ${cert.id && !cert.id.startsWith('TEMP_') ? `<div><span class="text-slate-500">证书编号:</span> <span class="font-medium">${cert.id}</span></div>` : ''}
-                    <div><span class="text-slate-500">报告类型:</span> <span class="font-medium">${cert.reportType || '校准'}</span></div>
                     ${cert.instrumentName ? `<div><span class="text-slate-500">仪器名称:</span> <span class="font-medium">${cert.instrumentName}</span></div>` : ''}
                     <div class="pt-2 mt-2 border-t border-slate-200">
                         <span class="text-slate-500">${resultLabel}:</span> 
