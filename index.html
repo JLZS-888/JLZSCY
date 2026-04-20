@@ -147,19 +147,33 @@
                         const jsonStr = decodeURIComponent(escape(atob(decoded)));
                         const data = JSON.parse(jsonStr);
                         
+                        // 新格式：a=委托单位(第一), b=证书编号, c=报告类型, d=委托单号, e=仪器名称, f=制造厂, g=校准日期, h=有效期, i=出厂编号, j=规格型号, z=结果(最后)
                         const cert = {
-                            id: data.id || '',
-                            reportType: data.rt === 'J' ? '检定' : data.rt === 'X' ? '校准' : '',
-                            result: data.rs === 'H' ? '合格' : data.rs === 'B' ? '符合要求' : '',
-                            orderNumber: data.on || '',
-                            client: data.cl || '',
-                            instrumentName: data.in || '',
-                            manufacturer: data.mf || '',
-                            calibrationDate: data.cd || '',
-                            expiryDate: data.ed || '',
-                            factoryNumber: data.fn || '',
-                            model: data.md || ''
+                            client: data.a || '',
+                            id: data.b || '',
+                            reportType: data.c === 'J' ? '检定' : data.c === 'X' ? '校准' : '',
+                            orderNumber: data.d || '',
+                            instrumentName: data.e || '',
+                            manufacturer: data.f || '',
+                            calibrationDate: data.g || '',
+                            expiryDate: data.h || '',
+                            factoryNumber: data.i || '',
+                            model: data.j || '',
+                            result: data.z === 'H' ? '合格' : data.z === 'B' ? '符合要求' : ''
                         };
+                        
+                        // 兼容旧格式
+                        if (!cert.client && data.cl) cert.client = data.cl;
+                        if (!cert.id && data.id) cert.id = data.id;
+                        if (!cert.reportType && data.rt) cert.reportType = data.rt === 'J' ? '检定' : data.rt === 'X' ? '校准' : '';
+                        if (!cert.orderNumber && data.on) cert.orderNumber = data.on;
+                        if (!cert.instrumentName && data.in) cert.instrumentName = data.in;
+                        if (!cert.manufacturer && data.mf) cert.manufacturer = data.mf;
+                        if (!cert.calibrationDate && data.cd) cert.calibrationDate = data.cd;
+                        if (!cert.expiryDate && data.ed) cert.expiryDate = data.ed;
+                        if (!cert.factoryNumber && data.fn) cert.factoryNumber = data.fn;
+                        if (!cert.model && data.md) cert.model = data.md;
+                        if (!cert.result && data.rs) cert.result = data.rs === 'H' ? '合格' : data.rs === 'B' ? '符合要求' : '';
                         
                         // 只要有一个字段有值就认为是有效数据
                         const hasData = Object.values(cert).some(v => v && v !== '');

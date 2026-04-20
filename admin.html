@@ -9,7 +9,26 @@
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
 </head>
 <body class="bg-slate-50 p-6 min-h-screen">
-    <div class="max-w-5xl mx-auto">
+    <!-- 登录遮罩 -->
+    <div id="loginModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]">
+        <div class="bg-white rounded-2xl p-8 max-w-sm w-full mx-4 shadow-2xl">
+            <h2 class="text-xl font-bold text-slate-800 mb-6 text-center">🔐 管理后台登录</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="text-xs font-bold text-slate-500 mb-1 block">账号</label>
+                    <input type="text" id="loginUser" placeholder="输入账号" class="w-full p-3 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-500 mb-1 block">密码</label>
+                    <input type="password" id="loginPass" placeholder="输入密码" class="w-full p-3 border-2 border-slate-200 rounded-xl outline-none focus:border-blue-500">
+                </div>
+                <button onclick="doLogin()" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold hover:bg-blue-700 transition">登录</button>
+                <p id="loginError" class="text-red-500 text-xs text-center hidden">账号或密码错误</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="mainContent" class="max-w-5xl mx-auto hidden">
         <!-- 数据提示 -->
         <div class="bg-amber-500 text-white p-4 rounded-2xl mb-6 shadow-lg">
             <div class="flex justify-between items-center">
@@ -160,6 +179,7 @@
             </div>
         </div>
     </div>
+    </div>
 
     <!-- 二维码弹窗 -->
     <div id="qrModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
@@ -171,6 +191,43 @@
     </div>
 
     <script>
+        // 登录配置（可修改）
+        const LOGIN_USER = 'admin';
+        const LOGIN_PASS = 'jlzs888';
+        
+        // 检查登录状态
+        function checkLogin() {
+            if (localStorage.getItem('jlzs_logged_in') === 'true') {
+                document.getElementById('loginModal').classList.add('hidden');
+                document.getElementById('mainContent').classList.remove('hidden');
+                return true;
+            }
+            return false;
+        }
+        
+        function doLogin() {
+            const user = document.getElementById('loginUser').value.trim();
+            const pass = document.getElementById('loginPass').value;
+            if (user === LOGIN_USER && pass === LOGIN_PASS) {
+                localStorage.setItem('jlzs_logged_in', 'true');
+                document.getElementById('loginModal').classList.add('hidden');
+                document.getElementById('mainContent').classList.remove('hidden');
+                document.getElementById('loginError').classList.add('hidden');
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        }
+        
+        // 回车登录
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('loginPass')?.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') doLogin();
+            });
+            document.getElementById('loginUser')?.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') document.getElementById('loginPass').focus();
+            });
+        });
+        
         // 本地存储键名
         const STORAGE_KEY = 'jlzs_certs';
         const CONFIG_KEY = 'jlzs_config';
@@ -425,30 +482,34 @@
             const modal = document.getElementById('qrModal');
             const canvas = document.getElementById('qrCanvas');
             
-            // 构建要编码的数据对象（只包含勾选的字段）
+            // 构建要编码的数据对象 - 委托单位放第一，结果放最后
             const dataToEncode = {};
             
-            // 证书编号（如果勾选且不是临时ID）
+            // 1. 委托单位（第一行）
+            if (fieldConfig.client && cert.client) dataToEncode.a = cert.client;
+            
+            // 2. 证书编号（如果勾选且不是临时ID）
             if (fieldConfig.certId && !id.startsWith('TEMP_')) {
-                dataToEncode.id = id;
+                dataToEncode.b = id;
             }
             
-            // 只添加勾选的字段
-            if (fieldConfig.reportType) dataToEncode.rt = cert.reportType === '检定' ? 'J' : 'X';
-            if (fieldConfig.result) dataToEncode.rs = cert.result === '合格' ? 'H' : 'B';
-            if (fieldConfig.orderNumber && cert.orderNumber) dataToEncode.on = cert.orderNumber;
-            if (fieldConfig.client && cert.client) dataToEncode.cl = cert.client;
-            if (fieldConfig.instrumentName && cert.instrumentName) dataToEncode.in = cert.instrumentName;
-            if (fieldConfig.manufacturer && cert.manufacturer) dataToEncode.mf = cert.manufacturer;
-            if (fieldConfig.calibrationDate && cert.calibrationDate) dataToEncode.cd = cert.calibrationDate;
-            if (fieldConfig.expiryDate && cert.expiryDate) dataToEncode.ed = cert.expiryDate;
-            if (fieldConfig.factoryNumber && cert.factoryNumber) dataToEncode.fn = cert.factoryNumber;
-            if (fieldConfig.model && cert.model) dataToEncode.md = cert.model;
+            // 3. 中间字段
+            if (fieldConfig.reportType) dataToEncode.c = cert.reportType === '检定' ? 'J' : 'X';
+            if (fieldConfig.orderNumber && cert.orderNumber) dataToEncode.d = cert.orderNumber;
+            if (fieldConfig.instrumentName && cert.instrumentName) dataToEncode.e = cert.instrumentName;
+            if (fieldConfig.manufacturer && cert.manufacturer) dataToEncode.f = cert.manufacturer;
+            if (fieldConfig.calibrationDate && cert.calibrationDate) dataToEncode.g = cert.calibrationDate;
+            if (fieldConfig.expiryDate && cert.expiryDate) dataToEncode.h = cert.expiryDate;
+            if (fieldConfig.factoryNumber && cert.factoryNumber) dataToEncode.i = cert.factoryNumber;
+            if (fieldConfig.model && cert.model) dataToEncode.j = cert.model;
             
-            // 编码字段配置（11位：certId, reportType, result, orderNumber, client, instrumentName, manufacturer, calibrationDate, expiryDate, factoryNumber, model）
+            // 4. 检定/校准结果（最后一行）
+            if (fieldConfig.result) dataToEncode.z = cert.result === '合格' ? 'H' : 'B';
+            
+            // 编码字段配置（11位）
             const cfgMask = FIELD_ORDER.map(f => fieldConfig[f] ? '1' : '0').join('');
             
-            // 使用 Base64 编码 JSON 数据（更紧凑且避免 URL 特殊字符问题）
+            // 使用 Base64 编码 JSON 数据
             const jsonStr = JSON.stringify(dataToEncode);
             const base64Encoded = btoa(unescape(encodeURIComponent(jsonStr)));
             
@@ -457,11 +518,13 @@
             console.log('QR URL:', targetUrl);
             console.log('URL length:', targetUrl.length);
             
+            // 优化二维码参数：使用 M 级容错，增大尺寸，降低密度
             QRCode.toCanvas(canvas, targetUrl, { 
-                width: 280, 
-                margin: 2, 
+                width: 320, 
+                margin: 3, 
                 color: { dark: '#000000', light: '#FFFFFF' },
-                errorCorrectionLevel: 'L'  // 使用 L 级容错，可存储更多数据
+                errorCorrectionLevel: 'M',  // M级容错，平衡容量和识别率
+                scale: 4  // 增大模块大小，降低码点密度
             }, function(error) {
                 if (error) {
                     console.error('QR生成错误:', error);
@@ -593,6 +656,13 @@
         }
         
         window.onload = async function() {
+            // 先检查登录
+            if (!checkLogin()) {
+                // 未登录，显示登录框
+                document.getElementById('loginModal').classList.remove('hidden');
+                document.getElementById('loginModal').classList.add('flex');
+            }
+            
             loadConfig();
             loadCerts();
             updateLastBackupTime();
