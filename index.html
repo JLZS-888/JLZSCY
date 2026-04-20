@@ -132,45 +132,6 @@
         function parseUrlParams() {
             const params = new URLSearchParams(window.location.search);
             
-            // 优先尝试极简格式（m参数）：包含核心数据
-            const m = params.get('m');
-            const certIdParam = params.get('id');
-            if (m) {
-                try {
-                    const decodedM = decodeURIComponent(m);
-                    // 极简格式：编号,类型,结果,有效期,委托单位缩写,仪器名称缩写（逗号分隔）
-                    const parts = decodedM.split(',');
-                    
-                    const cert = {
-                        id: certIdParam ? decodeURIComponent(certIdParam) : (parts[0] && parts[0] !== '0' ? parts[0] : ''),
-                        reportType: parts[1] === 'J' ? '检定' : parts[1] === 'X' ? '校准' : '',
-                        result: parts[2] === 'H' ? '合格' : parts[2] === 'B' ? '符合要求' : '',
-                        expiryDate: parts[3] && parts[3].length === 8
-                            ? parts[3].slice(0,4) + '-' + parts[3].slice(4,6) + '-' + parts[3].slice(6,8)
-                            : '',
-                        client: parts[4] || '',  // 委托单位（缩写）
-                        instrumentName: parts[5] || '',  // 仪器名称（缩写）
-                        orderNumber: '',
-                        manufacturer: '',
-                        calibrationDate: '',
-                        factoryNumber: '',
-                        model: ''
-                    };
-                    
-                    // 设置字段显示
-                    fieldConfig.certId = !!cert.id;
-                    fieldConfig.reportType = true;
-                    fieldConfig.result = true;
-                    fieldConfig.expiryDate = !!cert.expiryDate;
-                    fieldConfig.client = !!cert.client;
-                    fieldConfig.instrumentName = !!cert.instrumentName;
-                    
-                    return cert;
-                } catch (e) {
-                    console.log('极简格式解析失败');
-                }
-            }
-            
             const d = params.get('d');
             const cfg = params.get('cfg');
             if (!d) return null;
