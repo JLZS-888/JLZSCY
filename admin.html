@@ -478,6 +478,38 @@
             input.value = '';
         }
         
+        // 简化的字段顺序（用于短编码）
+        const SHORT_FIELD_ORDER = ['client', 'certId', 'reportType', 'orderNumber', 'instrumentName', 
+                                   'manufacturer', 'calibrationDate', 'expiryDate', 'factoryNumber', 'model', 'result'];
+        
+        // 短编码：使用数组代替对象，减少数据量
+        function encodeCertShort(cert, id) {
+            const arr = [];
+            // 0: 委托单位
+            arr.push(fieldConfig.client && cert.client ? cert.client : '');
+            // 1: 证书编号
+            arr.push(fieldConfig.certId && !id.startsWith('TEMP_') ? id : '');
+            // 2: 报告类型 (J/X)
+            arr.push(fieldConfig.reportType ? (cert.reportType === '检定' ? 'J' : 'X') : '');
+            // 3: 委托单号
+            arr.push(fieldConfig.orderNumber && cert.orderNumber ? cert.orderNumber : '');
+            // 4: 仪器名称
+            arr.push(fieldConfig.instrumentName && cert.instrumentName ? cert.instrumentName : '');
+            // 5: 制造厂
+            arr.push(fieldConfig.manufacturer && cert.manufacturer ? cert.manufacturer : '');
+            // 6: 检定/校准日期 (压缩格式 YYYYMMDD)
+            arr.push(fieldConfig.calibrationDate && cert.calibrationDate ? cert.calibrationDate.replace(/-/g, '') : '');
+            // 7: 有效期至 (压缩格式 YYYYMMDD)
+            arr.push(fieldConfig.expiryDate && cert.expiryDate ? cert.expiryDate.replace(/-/g, '') : '');
+            // 8: 出厂编号
+            arr.push(fieldConfig.factoryNumber && cert.factoryNumber ? cert.factoryNumber : '');
+            // 9: 规格型号
+            arr.push(fieldConfig.model && cert.model ? cert.model : '');
+            // 10: 结果 (H/B)
+            arr.push(fieldConfig.result ? (cert.reportType === '检定' ? 'H' : 'B') : '');
+            return arr;
+        }
+        
         function showQR(id) {
             const cert = certs.find(c => c.id === id);
             if (!cert) return alert('证书不存在');
@@ -485,52 +517,27 @@
             const modal = document.getElementById('qrModal');
             const canvas = document.getElementById('qrCanvas');
             
-            // 构建要编码的数据对象 - 委托单位放第一，结果放最后
-            const dataToEncode = {};
-            
-            // 1. 委托单位（第一行）
-            if (fieldConfig.client && cert.client) dataToEncode.a = cert.client;
-            
-            // 2. 证书编号（如果勾选且不是临时ID）
-            if (fieldConfig.certId && !id.startsWith('TEMP_')) {
-                dataToEncode.b = id;
-            }
-            
-            // 3. 中间字段
-            if (fieldConfig.reportType) dataToEncode.c = cert.reportType === '检定' ? 'J' : 'X';
-            if (fieldConfig.orderNumber && cert.orderNumber) dataToEncode.d = cert.orderNumber;
-            if (fieldConfig.instrumentName && cert.instrumentName) dataToEncode.e = cert.instrumentName;
-            if (fieldConfig.manufacturer && cert.manufacturer) dataToEncode.f = cert.manufacturer;
-            if (fieldConfig.calibrationDate && cert.calibrationDate) dataToEncode.g = cert.calibrationDate;
-            if (fieldConfig.expiryDate && cert.expiryDate) dataToEncode.h = cert.expiryDate;
-            if (fieldConfig.factoryNumber && cert.factoryNumber) dataToEncode.i = cert.factoryNumber;
-            if (fieldConfig.model && cert.model) dataToEncode.j = cert.model;
-            
-            // 4. 检定/校准结果（最后一行）- 根据报告类型自动生成对应结果
-            if (fieldConfig.result) {
-                // 检定 → 合格，校准 → 符合要求
-                dataToEncode.z = cert.reportType === '检定' ? 'H' : 'B';
-            }
+            // 使用短编码数组
+            const shortData = encodeCertShort(cert, id);
             
             // 编码字段配置（11位）
-            const cfgMask = FIELD_ORDER.map(f => fieldConfig[f] ? '1' : '0').join('');
+            const cfgMask = SHORT_FIELD_ORDER.map(f => fieldConfig[f] ? '1' : '0').join('');
             
-            // 使用 Base64 编码 JSON 数据
-            const jsonStr = JSON.stringify(dataToEncode);
-            const base64Encoded = btoa(unescape(encodeURIComponent(jsonStr)));
+            // 使用更短的编码：数组转字符串，用 | 分隔
+            const encoded = shortData.map(v => v || '-').join('|');
             
-            const targetUrl = QUERY_BASE_URL + '?d=' + encodeURIComponent(base64Encoded) + '&cfg=' + cfgMask;
+            const targetUrl = QUERY_BASE_URL + '?d=' + encodeURIComponent(encoded) + '&cfg=' + cfgMask;
             
             console.log('QR URL:', targetUrl);
             console.log('URL length:', targetUrl.length);
             
-            // 优化二维码参数：使用 M 级容错，增大尺寸，降低密度
+            // 优化二维码参数：使用 L 级容错，降低码点密度，提高识别率
             QRCode.toCanvas(canvas, targetUrl, { 
-                width: 320, 
-                margin: 3, 
+                width: 280, 
+                margin: 2, 
                 color: { dark: '#000000', light: '#FFFFFF' },
-                errorCorrectionLevel: 'M',  // M级容错，平衡容量和识别率
-                scale: 4  // 增大模块大小，降低码点密度
+                errorCorrectionLevel: 'L',  // L级容错，最小冗余，最大数据容量
+                scale: 3  // 适中的模块大小
             }, function(error) {
                 if (error) {
                     console.error('QR生成错误:', error);
