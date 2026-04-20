@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>证书管理 - 离线版</title>
+    <title>计量证书管理</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
@@ -156,11 +156,9 @@
     <!-- 二维码弹窗 -->
     <div id="qrModal" class="fixed inset-0 bg-black/50 hidden items-center justify-center z-50">
         <div class="bg-white rounded-3xl p-8 max-w-sm w-full mx-4 text-center">
-            <h3 class="font-bold text-lg mb-4 text-slate-800">分享查询链接</h3>
+            <h3 class="font-bold text-lg mb-4 text-slate-800">计量证书查询</h3>
             <canvas id="qrCanvas" class="mx-auto"></canvas>
-            <div class="mt-4 text-xs text-slate-500 break-all" id="qrUrl"></div>
-            <button id="copyBtn" class="mt-4 w-full bg-blue-500 text-white py-3 rounded-xl font-bold hover:bg-blue-600 transition">复制访问链接</button>
-            <button onclick="closeQR()" class="mt-3 text-slate-400 text-sm">关闭</button>
+            <button onclick="closeQR()" class="mt-6 w-full bg-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-300 transition">关闭</button>
         </div>
     </div>
 
@@ -415,36 +413,39 @@
             
             const modal = document.getElementById('qrModal');
             const canvas = document.getElementById('qrCanvas');
-            const copyBtn = document.getElementById('copyBtn');
-            const qrUrlDiv = document.getElementById('qrUrl');
             
-            // 编码数据到URL参数
+            // 编码字段配置为位掩码（1=显示，0=隐藏）
+            // 顺序: reportType, result, orderNumber, client, instrumentName, manufacturer, calibrationDate, expiryDate, factoryNumber, model
+            const cfgMask = [
+                fieldConfig.reportType ? '1' : '0',
+                fieldConfig.result ? '1' : '0',
+                fieldConfig.orderNumber ? '1' : '0',
+                fieldConfig.client ? '1' : '0',
+                fieldConfig.instrumentName ? '1' : '0',
+                fieldConfig.manufacturer ? '1' : '0',
+                fieldConfig.calibrationDate ? '1' : '0',
+                fieldConfig.expiryDate ? '1' : '0',
+                fieldConfig.factoryNumber ? '1' : '0',
+                fieldConfig.model ? '1' : '0'
+            ].join('');
+            
+            // 只编码勾选的字段（保持原有顺序，未勾选的为空字符串）
             const fields = [
                 id.startsWith('TEMP_') ? '' : id,
-                cert.reportType === '检定' ? 'J' : 'X',
-                cert.result === '合格' ? 'H' : 'B',
-                cert.orderNumber || '-',
-                cert.client || '-',
-                cert.instrumentName || '-',
-                cert.manufacturer || '-',
-                cert.calibrationDate || '-',
-                cert.expiryDate || '-',
-                cert.factoryNumber || '-',
-                cert.model || '-'
+                fieldConfig.reportType ? (cert.reportType === '检定' ? 'J' : 'X') : '',
+                fieldConfig.result ? (cert.result === '合格' ? 'H' : 'B') : '',
+                fieldConfig.orderNumber ? (cert.orderNumber || '-') : '',
+                fieldConfig.client ? (cert.client || '-') : '',
+                fieldConfig.instrumentName ? (cert.instrumentName || '-') : '',
+                fieldConfig.manufacturer ? (cert.manufacturer || '-') : '',
+                fieldConfig.calibrationDate ? (cert.calibrationDate || '-') : '',
+                fieldConfig.expiryDate ? (cert.expiryDate || '-') : '',
+                fieldConfig.factoryNumber ? (cert.factoryNumber || '-') : '',
+                fieldConfig.model ? (cert.model || '-') : ''
             ].join('&');
             
             const encoded = encodeURIComponent(fields);
-            const targetUrl = QUERY_BASE_URL + '?d=' + encoded;
-            
-            qrUrlDiv.textContent = targetUrl;
-            
-            copyBtn.onclick = function() {
-                navigator.clipboard.writeText(targetUrl).then(() => {
-                    const oldText = copyBtn.innerText;
-                    copyBtn.innerText = "✓ 已复制";
-                    setTimeout(() => { copyBtn.innerText = "复制访问链接"; }, 2000);
-                });
-            };
+            const targetUrl = QUERY_BASE_URL + '?d=' + encoded + '&cfg=' + cfgMask;
             
             QRCode.toCanvas(canvas, targetUrl, { 
                 width: 280, 

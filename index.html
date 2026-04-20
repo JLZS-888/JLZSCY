@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>证书查询 - JLZS-CXXY</title>
+    <title>计量证书查询</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @media print {
@@ -90,23 +90,19 @@
                 <!-- 有效状态 -->
                 <div id="validStatus" class="mt-4 p-4 rounded-xl text-center font-bold"></div>
                 
-                <!-- 打印按钮 -->
-                <button onclick="window.print()" class="no-print w-full mt-4 bg-slate-200 text-slate-600 py-3 rounded-xl font-bold hover:bg-slate-300 transition">
-                    🖨️ 打印证书
-                </button>
+
             </div>
         </div>
         
         <!-- 底部信息 -->
         <div class="text-center mt-6 text-xs text-slate-400">
-            <p>数据已编码在二维码中，无需网络验证</p>
-            <p class="mt-1">JLZS-CXXY 计量证书查询系统</p>
+            <p>JLZS-CXXY 计量证书查询系统</p>
         </div>
     </div>
 
     <script>
         // 字段配置（可由URL参数控制）
-        const defaultFieldConfig = {
+        let fieldConfig = {
             certId: true, reportType: true, result: true,
             orderNumber: true, client: true, instrumentName: true,
             manufacturer: true, calibrationDate: true, expiryDate: true,
@@ -117,27 +113,44 @@
         function parseUrlParams() {
             const params = new URLSearchParams(window.location.search);
             const d = params.get('d');
+            const cfg = params.get('cfg');
             if (!d) return null;
+            
+            // 解析字段配置掩码（10位：reportType, result, orderNumber, client, instrumentName, manufacturer, calibrationDate, expiryDate, factoryNumber, model）
+            if (cfg && cfg.length === 10) {
+                fieldConfig.reportType = cfg[0] === '1';
+                fieldConfig.result = cfg[1] === '1';
+                fieldConfig.orderNumber = cfg[2] === '1';
+                fieldConfig.client = cfg[3] === '1';
+                fieldConfig.instrumentName = cfg[4] === '1';
+                fieldConfig.manufacturer = cfg[5] === '1';
+                fieldConfig.calibrationDate = cfg[6] === '1';
+                fieldConfig.expiryDate = cfg[7] === '1';
+                fieldConfig.factoryNumber = cfg[8] === '1';
+                fieldConfig.model = cfg[9] === '1';
+            }
             
             try {
                 const decoded = decodeURIComponent(d);
                 const fields = decoded.split('&');
                 
-                if (fields.length < 10) return null;
-                
+                // fields[0] = certId; fields[1..] = 按顺序填入的数据，空字符串表示该字段未勾选
                 const cert = {
                     id: fields[0] || '',
-                    reportType: fields[1] === 'J' ? '检定' : '校准',
-                    result: fields[2] === 'H' ? '合格' : '符合要求',
-                    orderNumber: fields[3] === '-' ? '' : fields[3],
-                    client: fields[4] === '-' ? '' : fields[4],
-                    instrumentName: fields[5] === '-' ? '' : fields[5],
-                    manufacturer: fields[6] === '-' ? '' : fields[6],
-                    calibrationDate: fields[7] === '-' ? '' : fields[7],
-                    expiryDate: fields[8] === '-' ? '' : fields[8],
-                    factoryNumber: fields[9] === '-' ? '' : fields[9],
-                    model: fields[10] === '-' ? '' : fields[10]
+                    reportType: fields.length > 1 ? (fields[1] === 'J' ? '检定' : fields[1] === 'X' ? '校准' : '') : '',
+                    result: fields.length > 2 ? (fields[2] === 'H' ? '合格' : fields[2] === 'B' ? '符合要求' : '') : '',
+                    orderNumber: fields[3] || '',
+                    client: fields[4] || '',
+                    instrumentName: fields[5] || '',
+                    manufacturer: fields[6] || '',
+                    calibrationDate: fields[7] || '',
+                    expiryDate: fields[8] || '',
+                    factoryNumber: fields[9] || '',
+                    model: fields[10] || ''
                 };
+                
+                // 如果连证书编号都没有，说明数据无效
+                if (!cert.id) return null;
                 
                 return cert;
             } catch (e) {
@@ -155,35 +168,49 @@
             return expiry >= today;
         }
         
+        // 辅助函数：显示/隐藏字段
+        function setFieldVisibility(id, visible, value) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const container = el.closest('.bg-slate-50, .bg-emerald-50, .bg-red-50');
+            if (container) {
+                container.style.display = visible ? 'block' : 'none';
+            }
+            if (visible && value) {
+                el.textContent = value;
+            }
+        }
+        
         // 渲染证书信息
         function renderCert(cert) {
             document.getElementById('loading').classList.add('hidden');
             document.getElementById('certInfo').classList.remove('hidden');
             
-            // 证书编号
+            // 证书编号（始终显示）
             document.getElementById('certId').textContent = cert.id || '(无编号)';
             
-            // 基本信息
-            document.getElementById('reportType').textContent = cert.reportType;
+            // 根据配置显示/隐藏字段
+            setFieldVisibility('reportType', fieldConfig.reportType, cert.reportType);
+            setFieldVisibility('result', fieldConfig.result, cert.result);
+            setFieldVisibility('orderNumber', fieldConfig.orderNumber, cert.orderNumber);
+            setFieldVisibility('client', fieldConfig.client, cert.client);
+            setFieldVisibility('instrumentName', fieldConfig.instrumentName, cert.instrumentName);
+            setFieldVisibility('manufacturer', fieldConfig.manufacturer, cert.manufacturer);
+            setFieldVisibility('model', fieldConfig.model, cert.model);
+            setFieldVisibility('factoryNumber', fieldConfig.factoryNumber, cert.factoryNumber);
+            setFieldVisibility('calibrationDate', fieldConfig.calibrationDate, cert.calibrationDate);
+            setFieldVisibility('expiryDate', fieldConfig.expiryDate, cert.expiryDate);
             
-            // 结果
+            // 设置结果颜色
             const resultEl = document.getElementById('result');
-            resultEl.textContent = cert.result;
-            if (cert.result === '合格') {
-                resultEl.classList.add('text-blue-600');
-            } else {
-                resultEl.classList.add('text-emerald-600');
+            if (resultEl && fieldConfig.result) {
+                resultEl.classList.remove('text-blue-600', 'text-emerald-600');
+                if (cert.result === '合格') {
+                    resultEl.classList.add('text-blue-600');
+                } else {
+                    resultEl.classList.add('text-emerald-600');
+                }
             }
-            
-            // 其他字段
-            document.getElementById('client').textContent = cert.client || '-';
-            document.getElementById('instrumentName').textContent = cert.instrumentName || '-';
-            document.getElementById('manufacturer').textContent = cert.manufacturer || '-';
-            document.getElementById('model').textContent = cert.model || '-';
-            document.getElementById('factoryNumber').textContent = cert.factoryNumber || '-';
-            document.getElementById('orderNumber').textContent = cert.orderNumber || '-';
-            document.getElementById('calibrationDate').textContent = cert.calibrationDate || '-';
-            document.getElementById('expiryDate').textContent = cert.expiryDate || '-';
             
             // 有效状态
             const validStatus = document.getElementById('validStatus');
