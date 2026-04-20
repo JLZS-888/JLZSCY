@@ -21,6 +21,7 @@
                 </div>
                 <div id="syncStatus" class="text-xs bg-amber-600 px-3 py-1 rounded-full font-bold">离线可用</div>
             </div>
+            <div class="mt-2 text-[10px] opacity-70 font-mono">备份位置: J:\project_20260420_172121\projects\jlzs-data.json</div>
             <div class="mt-3 pt-3 border-t border-amber-400 flex gap-2">
                 <button onclick="exportData()" class="flex-1 bg-white text-amber-600 py-2 rounded-lg text-sm font-bold hover:bg-amber-50 transition">
                     📥 立即备份
@@ -507,6 +508,10 @@
             updateStats();
         }
         
+        // 备份文件路径提示（浏览器限制，需手动保存到指定位置）
+        const BACKUP_FOLDER = 'J:\\project_20260420_172121\\projects';
+        const BACKUP_FILENAME = 'jlzs-data.json';
+        
         function exportData() {
             const data = {
                 certs: certs,
@@ -517,7 +522,7 @@
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = `jlzs-backup-${new Date().toISOString().slice(0,10)}.json`;
+            a.download = BACKUP_FILENAME; // 固定文件名
             a.click();
             URL.revokeObjectURL(url);
             
@@ -525,6 +530,9 @@
             const now = new Date();
             localStorage.setItem('jlzs_last_backup', now.toISOString());
             updateLastBackupTime();
+            
+            // 提示用户保存位置
+            alert(`备份文件已下载：${BACKUP_FILENAME}\n\n请手动移动到：\n${BACKUP_FOLDER}\n\n下次导入时也会从此文件合并数据。`);
         }
         
         function updateLastBackupTime() {
