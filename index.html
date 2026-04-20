@@ -34,6 +34,8 @@
                 <p class="text-slate-400 text-sm mt-2">请检查二维码是否正确</p>
             </div>
             
+
+            
             <!-- 证书内容 -->
             <div id="certInfo" class="hidden space-y-4">
                 <!-- 证书编号 -->
@@ -130,29 +132,24 @@
         function parseUrlParams() {
             const params = new URLSearchParams(window.location.search);
             
-            // 优先尝试超短格式（m参数）：只包含核心数据
+            // 优先尝试极简格式（m参数）：包含核心数据
             const m = params.get('m');
-            const x = params.get('x');
+            const certIdParam = params.get('id');
             if (m) {
                 try {
-                    // 超短格式：编号,类型,结果,有效期（逗号分隔）
-                    const parts = m.split(',');
-                    let displayData = {};
-                    if (x) {
-                        try {
-                            displayData = JSON.parse(decodeURIComponent(x));
-                        } catch (e) {}
-                    }
+                    const decodedM = decodeURIComponent(m);
+                    // 极简格式：编号,类型,结果,有效期,委托单位缩写,仪器名称缩写（逗号分隔）
+                    const parts = decodedM.split(',');
                     
                     const cert = {
-                        id: displayData.c || (parts[0] && parts[0] !== '0' ? parts[0] : ''),
+                        id: certIdParam ? decodeURIComponent(certIdParam) : (parts[0] && parts[0] !== '0' ? parts[0] : ''),
                         reportType: parts[1] === 'J' ? '检定' : parts[1] === 'X' ? '校准' : '',
                         result: parts[2] === 'H' ? '合格' : parts[2] === 'B' ? '符合要求' : '',
                         expiryDate: parts[3] && parts[3].length === 8
                             ? parts[3].slice(0,4) + '-' + parts[3].slice(4,6) + '-' + parts[3].slice(6,8)
-                            : (displayData.e ? displayData.e.slice(0,4) + '-' + displayData.e.slice(4,6) + '-' + displayData.e.slice(6,8) : ''),
-                        client: displayData.cl || '',
-                        instrumentName: displayData.i || '',
+                            : '',
+                        client: parts[4] || '',  // 委托单位（缩写）
+                        instrumentName: parts[5] || '',  // 仪器名称（缩写）
                         orderNumber: '',
                         manufacturer: '',
                         calibrationDate: '',
@@ -160,7 +157,7 @@
                         model: ''
                     };
                     
-                    // 根据数据设置字段显示
+                    // 设置字段显示
                     fieldConfig.certId = !!cert.id;
                     fieldConfig.reportType = true;
                     fieldConfig.result = true;
@@ -170,7 +167,7 @@
                     
                     return cert;
                 } catch (e) {
-                    console.log('超短格式解析失败');
+                    console.log('极简格式解析失败');
                 }
             }
             
@@ -335,17 +332,78 @@
             }
         }
         
+        // 存储当前证书数据（用于验证）
+        let currentCert = null;
+        
         // 显示错误
         function showError() {
             document.getElementById('loading').classList.add('hidden');
             document.getElementById('error').classList.remove('hidden');
         }
         
+        // 显示验证表单
+        function showVerifyForm(cert) {
+            currentCert = cert;
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('verifyForm').classList.remove('hidden');
+            document.getElementById('verifyInput').focus();
+        }
+        
+        // 验证委托单位
+        function verifyClient() {
+            const input = document.getElementById('verifyInput').value.trim();
+            const errorEl = document.getElementById('verifyError');
+            
+            if (!input) {
+                errorEl.textContent = '请输入委托单位名称';
+                errorEl.classList.remove('hidden');
+                return;
+            }
+            
+            // 从 localStorage 查找匹配的证书
+            const storedCerts = JSON.parse(localStorage.getItem('jlzs_certs') || '[]');
+            const matched = storedCerts.find(c => 
+                c.id === currentCert.id && 
+                c.client && 
+                c.client.toLowerCase().includes(input.toLowerCase())
+            );
+            
+            if (matched) {
+                // 验证成功，显示完整证书信息
+                currentCert.client = matched.client;
+                currentCert.instrumentName = matched.instrumentName || '';
+                currentCert.manufacturer = matched.manufacturer || '';
+                currentCert.model = matched.model || '';
+                currentCert.factoryNumber = matched.factoryNumber || '';
+                currentCert.orderNumber = matched.orderNumber || '';
+                currentCert.calibrationDate = matched.calibrationDate || '';
+                
+                fieldConfig.client = true;
+                fieldConfig.instrumentName = true;
+                fieldConfig.manufacturer = !!currentCert.manufacturer;
+                fieldConfig.model = !!currentCert.model;
+                fieldConfig.factoryNumber = !!currentCert.factoryNumber;
+                fieldConfig.orderNumber = !!currentCert.orderNumber;
+                fieldConfig.calibrationDate = !!currentCert.calibrationDate;
+                
+                document.getElementById('verifyForm').classList.add('hidden');
+                renderCert(currentCert);
+            } else {
+                errorEl.textContent = '委托单位不匹配，请重新输入';
+                errorEl.classList.remove('hidden');
+            }
+        }
+        
         // 初始化
         window.onload = function() {
             const cert = parseUrlParams();
             if (cert) {
-                renderCert(cert);
+                // 如果委托单位为空，需要验证
+                if (!cert.client) {
+                    showVerifyForm(cert);
+                } else {
+                    renderCert(cert);
+                }
             } else {
                 showError();
             }

@@ -478,9 +478,19 @@
             input.value = '';
         }
         
-        // 超短编码：只保留核心字段，最大限度减少二维码数据量
+        // 智能缩写：保留关键信息的同时缩短长度
+        function abbreviateClient(name) {
+            if (!name) return '';
+            // 移除常见后缀
+            let short = name.replace(/有限公司/g, '').replace(/有限责任公司/g, '').replace(/股份有限公司/g, '');
+            // 移除省份/城市前缀中的"省""市"
+            short = short.replace(/省/g, '').replace(/市/g, '');
+            // 取前12个字符
+            return short.slice(0, 12);
+        }
+        
+        // 超短编码：保留核心字段，委托单位使用缩写
         function encodeCertMinimal(cert, id) {
-            // 只编码：证书编号、报告类型、结果、有效期（4个核心字段）
             const parts = [];
             // 0: 证书编号（简化：只取数字部分）
             const certNum = id.startsWith('TEMP_') ? '' : id.replace(/[^0-9]/g, '');
@@ -491,6 +501,10 @@
             parts.push(cert.reportType === '检定' ? 'H' : 'B');
             // 3: 有效期 (YYYYMMDD)
             parts.push(cert.expiryDate ? cert.expiryDate.replace(/-/g, '') : '');
+            // 4: 委托单位（缩写）
+            parts.push(abbreviateClient(cert.client));
+            // 5: 仪器名称（前10字）
+            parts.push(cert.instrumentName ? cert.instrumentName.slice(0, 10) : '');
             return parts.join(',');
         }
         
@@ -504,17 +518,8 @@
             // 使用超短编码
             const encoded = encodeCertMinimal(cert, id);
             
-            // 构建URL，添加完整数据用于显示（但二维码只编码核心数据）
-            const displayData = {
-                c: cert.id.startsWith('TEMP_') ? '' : cert.id,
-                t: cert.reportType === '检定' ? 'J' : 'X',
-                r: cert.reportType === '检定' ? 'H' : 'B',
-                e: cert.expiryDate ? cert.expiryDate.replace(/-/g, '') : '',
-                cl: cert.client || '',
-                i: cert.instrumentName || ''
-            };
-            
-            const targetUrl = QUERY_BASE_URL + '?m=' + encoded + '&x=' + encodeURIComponent(JSON.stringify(displayData));
+            // 构建URL：编码核心数据 + 完整证书编号
+            const targetUrl = QUERY_BASE_URL + '?m=' + encodeURIComponent(encoded) + '&id=' + encodeURIComponent(cert.id.startsWith('TEMP_') ? '' : cert.id);
             
             console.log('QR URL:', targetUrl);
             console.log('URL length:', targetUrl.length);
