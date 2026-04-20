@@ -503,8 +503,11 @@
             if (fieldConfig.factoryNumber && cert.factoryNumber) dataToEncode.i = cert.factoryNumber;
             if (fieldConfig.model && cert.model) dataToEncode.j = cert.model;
             
-            // 4. 检定/校准结果（最后一行）
-            if (fieldConfig.result) dataToEncode.z = cert.result === '合格' ? 'H' : 'B';
+            // 4. 检定/校准结果（最后一行）- 根据报告类型自动生成对应结果
+            if (fieldConfig.result) {
+                // 检定 → 合格，校准 → 符合要求
+                dataToEncode.z = cert.reportType === '检定' ? 'H' : 'B';
+            }
             
             // 编码字段配置（11位）
             const cfgMask = FIELD_ORDER.map(f => fieldConfig[f] ? '1' : '0').join('');
