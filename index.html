@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -22,7 +22,7 @@
 <body class="bg-white min-h-screen p-4">
     <div class="max-w-lg mx-auto">
         <!-- 头部 -->
-        <div id="headerArea" class="rounded-t-3xl shadow-xl text-center overflow-hidden">
+        <div id="headerArea" class="rounded-t-3xl shadow-xl text-center overflow-hidden bg-white">
             <!-- 默认蓝色标题 -->
             <div id="defaultHeader" class="bg-[#1e88e5] text-white p-6">
                 <h1 class="text-2xl font-black tracking-widest">计量证书查询</h1>
@@ -60,17 +60,12 @@
                 <div id="infoCards" class="space-y-2 text-base">
                     <!-- 由 JS 动态渲染 -->
                 </div>
-                
-                <!-- 有效状态 -->
-                <div id="validStatus" class="mt-4 p-4 rounded-xl text-center font-bold"></div>
-                
-
             </div>
         </div>
         
-        <!-- 底部信息 -->
-        <div class="text-center mt-6 text-xs text-slate-400">
-            <p>计量证书查询</p>
+        <!-- 底部图片（仅深圳计量院显示） -->
+        <div id="szjlyBottomImg" class="hidden mt-4">
+            <img src="images/qr-bottom.jpg" alt="" class="w-full block">
         </div>
     </div>
 
@@ -82,6 +77,7 @@
             if (unit === 'S') {
                 document.getElementById('defaultHeader').classList.add('hidden');
                 document.getElementById('szjlyHeader').classList.remove('hidden');
+                document.getElementById('szjlyBottomImg').classList.remove('hidden');
             }
         }
         initHeader();
@@ -99,7 +95,7 @@
 
         // ===== 调试日志 =====
         const _dbg = [];
-        function dbg(msg) { console.log('[JLZSCY]', msg); _dbg.push(msg); }
+        function dbg(msg) { console.log('[CYXT]', msg); _dbg.push(msg); }
         
         // 解析URL参数
         function parseUrlParams() {
@@ -246,24 +242,9 @@
                 const raw = cert[f.id];
                 if (!raw) return;
                 const label = f.labelFn ? f.labelFn() : f.label;
-                html += '<div class="p-4 rounded-xl"><div class="text-xs font-bold text-slate-800">' + label + '</div><div class="font-bold text-slate-800 text-lg">' + raw + '</div></div>';
+                html += '<div class="p-4 rounded-xl"><div class="text-sm font-bold text-slate-800">' + label + '</div><div class="text-sm text-slate-800 font-normal">' + raw + '</div></div>';
             });
             container.innerHTML = html;
-
-            // 有效状态
-            const validStatus = document.getElementById('validStatus');
-            const isValid = checkValidity(cert.expiryDate);
-            if (isValid === null) {
-                validStatus.textContent = '有效期未知';
-                validStatus.className = 'mt-4 p-4 rounded-xl text-center font-bold bg-slate-100 text-slate-600';
-            } else if (isValid) {
-                const daysLeft = Math.ceil((new Date(cert.expiryDate) - new Date()) / (1000 * 60 * 60 * 24));
-                validStatus.textContent = '✓ 证书有效（剩余 ' + daysLeft + ' 天）';
-                validStatus.className = 'mt-4 p-4 rounded-xl text-center font-bold bg-emerald-100 text-emerald-600';
-            } else {
-                validStatus.textContent = '⚠ 证书已过期';
-                validStatus.className = 'mt-4 p-4 rounded-xl text-center font-bold bg-red-100 text-red-600';
-            }
         }
         
         // 显示错误（带调试信息）
@@ -275,18 +256,18 @@
             }
         }
 
-        // 数据源列表（按优先级排序，JSDelivr 国内最快）
+        // 数据源列表（GitHub Pages 优先，JSDelivr 有 CDN 缓存延迟作为备用）
         const GH_DATA_URLS = [
-            'https://cdn.jsdelivr.net/gh/JLZS-888/JLZSCY@main/data/certs.json',
-            'https://jlzs-888.github.io/JLZSCY/data/certs.json',
-            'https://raw.githubusercontent.com/JLZS-888/JLZSCY/main/data/certs.json'
+            'https://jlzs-888.github.io/CYXT/data/certs.json',
+            'https://cdn.jsdelivr.net/gh/JLZS-888/CYXT@main/data/certs.json',
+            'https://raw.githubusercontent.com/JLZS-888/CYXT/main/data/certs.json'
         ];
 
         // 带超时的 fetch
         function fetchWithTimeout(url, timeout) {
             var controller = new AbortController();
             var timer = setTimeout(function() { controller.abort(); }, timeout);
-            return fetch(url, { signal: controller.signal }).then(function(res) {
+            return fetch(url, { signal: controller.signal, cache: 'no-store' }).then(function(res) {
                 clearTimeout(timer);
                 return res;
             }).catch(function(err) {
