@@ -531,9 +531,9 @@
         
 
         // 查询页基础URL - 固定指向 GitHub Pages
-        const QUERY_BASE_URL = 'https://jlzs-888.github.io/JLZSCY/index.html';
+        const QUERY_BASE_URL = 'https://jlzs-888.github.io/CYXT/index.html';
         const GH_OWNER = 'JLZS-888';
-        const GH_REPO = 'JLZSCY';
+        const GH_REPO = 'CYXT';
         // GitHub Raw 地址（用于 index.html 查询端拉取数据）
         const DATA_RAW_URL = 'https://raw.githubusercontent.com/' + GH_OWNER + '/' + GH_REPO + '/main/data/certs.json';
 
@@ -1005,7 +1005,8 @@
             const modal = document.getElementById('qrModal');
             const canvas = document.getElementById('qrCanvas');
             // 二维码只包含证书编号，极简
-            const certUrl = QUERY_BASE_URL + '?id=' + encodeURIComponent(cert.id);
+            let certUrl = QUERY_BASE_URL + '?id=' + encodeURIComponent(cert.id);
+            if (cert.unit === '深圳计量院' || cert.unit === 'S') certUrl += '&u=S';
             modal.classList.remove('hidden');
             modal.classList.add('flex');
             setTimeout(function() {
@@ -1022,9 +1023,9 @@
                 const resultLabel = isJianDing ? '检定结论' : '校准结论';
                 const resultText = isJianDing ? '合格' : '符合要求';
                 const infoHtml = '<div class="font-bold text-slate-700 border-b pb-2 mb-2">证书信息</div>' +
-                    (cert.client ? '<div><span class="text-slate-500">证书单位:</span> <span class="font-medium">' + cert.client + '</span></div>' : '') +
-                    (cert.id && !cert.id.startsWith('TEMP_') ? '<div><span class="text-slate-500">证书号:</span> <span class="font-medium">' + cert.id + '</span></div>' : '') +
-                    (cert.instrumentName ? '<div><span class="text-slate-500">仪器名称:</span> <span class="font-medium">' + cert.instrumentName + '</span></div>' : '') +
+                    (cert.client ? '<div><span class="text-slate-500">证书单位:</span> <span class="text-xs font-normal">' + cert.client + '</span></div>' : '') +
+                    (cert.id && !cert.id.startsWith('TEMP_') ? '<div><span class="text-slate-500">证书号:</span> <span class="text-xs font-normal">' + cert.id + '</span></div>' : '') +
+                    (cert.instrumentName ? '<div><span class="text-slate-500">仪器名称:</span> <span class="text-xs font-normal">' + cert.instrumentName + '</span></div>' : '') +
                     '<div class="pt-2 mt-2 border-t border-slate-200">' +
                         '<span class="text-slate-500">' + resultLabel + ':</span> ' +
                         '<span class="font-bold ' + (isJianDing ? 'text-blue-600' : 'text-emerald-600') + '">' + resultText + '</span>' +
@@ -1065,7 +1066,8 @@
                     validHtml = '<div style="margin-top:16px;padding:16px;border-radius:12px;text-align:center;font-weight:bold;background:#fee2e2;color:#dc2626">⚠ 证书已过期</div>';
                 }
             }
-            return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>证书信息</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:SimSun,宋体,serif;background:#f8fafc;min-height:100vh;padding:16px}</style></head><body><div style="max-width:480px;margin:0 auto"><div style="border-radius:24px 24px 0 0;overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)">' + szImg + '<div style="background:#1e88e5;color:#fff;padding:24px;text-align:center"><h1 style="font-size:24px;font-weight:900;letter-spacing:8px">计量证书查询</h1></div></div><div style="background:#fff;padding:24px;border-radius:0 0 24px 24px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)">' + (visibleFields.certId !== false ? '<div style="text-align:center;padding-bottom:16px;border-bottom:1px solid #f1f5f9"><div style="font-size:12px;color:#94a3b8">证书编号</div><div style="font-size:24px;font-weight:900;color:#1e88e5;letter-spacing:2px">' + (cert.id || '') + '</div></div>' : '') + '<div style="display:flex;flex-direction:column;gap:8px">' + fields + '</div>' + validHtml + '</div>' + (!cert.unit || cert.unit !== '深圳计量院' ? '<div style="text-align:center;margin-top:24px;font-size:12px;color:#94a3b8"><p>计量证书查询</p></div>' : '') + '</div></body></html>';
+            var szBottomImg = isSzJly ? '<div style="margin-top:0"><img src="../images/qr-bottom.jpg" alt="" style="width:100%;display:block"></div>' : '';
+            return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>证书信息</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:SimSun,宋体,serif;background:#f8fafc;min-height:100vh;padding:16px}</style></head><body><div style="max-width:480px;margin:0 auto"><div style="border-radius:24px 24px 0 0;overflow:hidden;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)">' + szImg + '<div style="background:#1e88e5;color:#fff;padding:24px;text-align:center"><h1 style="font-size:24px;font-weight:900;letter-spacing:8px">计量证书查询</h1></div></div><div style="background:#fff;padding:24px;border-radius:0 0 24px 24px;box-shadow:0 4px 6px -1px rgba(0,0,0,0.1)">' + (visibleFields.certId !== false ? '<div style="text-align:center;padding-bottom:16px;border-bottom:1px solid #f1f5f9"><div style="font-size:12px;color:#94a3b8">证书编号</div><div style="font-size:24px;font-weight:900;color:#1e88e5;letter-spacing:2px">' + (cert.id || '') + '</div></div>' : '') + '<div style="display:flex;flex-direction:column;gap:8px">' + fields + '</div>' + validHtml + '</div>' + szBottomImg + (!cert.unit || cert.unit !== '深圳计量院' ? '<div style="text-align:center;margin-top:24px;font-size:12px;color:#94a3b8"><p>计量证书查询</p></div>' : '') + '</div></body></html>';
         }
 
         // 从 GitHub 拉取远程数据并合并到本地（不会覆盖本地已有证书）
@@ -1223,6 +1225,13 @@
                 if (putRes.ok) {
                     if (statusEl) { statusEl.textContent = '已同步(' + exportCerts.length + '条)'; statusEl.className = 'text-[10px] bg-green-600 px-3 py-1 rounded-full font-bold'; }
                     if (detailEl) { detailEl.textContent = '✅ 同步成功！扫码即可查询'; setTimeout(function() { detailEl.classList.add('hidden'); }, 5000); }
+                    // 自动刷新 JSDelivr CDN 缓存
+                    try {
+                        await fetch('https://purge.jsdelivr.net/gh/' + GH_OWNER + '/' + GH_REPO + '@main/data/certs.json');
+                        console.log('JSDelivr CDN cache purged');
+                    } catch(purgeErr) {
+                        console.warn('CDN purge failed:', purgeErr);
+                    }
                 } else {
                     var errData = await putRes.json().catch(function() { return {}; });
                     var errMsg = errData.message || ('HTTP ' + putRes.status);
