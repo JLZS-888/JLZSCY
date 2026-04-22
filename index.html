@@ -3,6 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
     <title>计量证书查询</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
@@ -31,7 +34,7 @@
         </div>
         
         <!-- 主内容 -->
-        <div class="bg-white p-6 rounded-b-3xl shadow-xl" id="contentArea">
+        <div class="bg-blue-50 p-6 rounded-b-3xl shadow-xl" id="contentArea">
             <!-- 加载中 -->
             <div id="loading" class="text-center py-12">
                 <div class="text-4xl mb-4">📄</div>
@@ -93,6 +96,10 @@
         
         // 字段顺序（与 cfgMask 对应）
         const FIELD_ORDER = ['certId', 'reportType', 'result', 'orderNumber', 'client', 'instrumentName', 'manufacturer', 'calibrationDate', 'expiryDate', 'factoryNumber', 'model'];
+
+        // ===== 调试日志 =====
+        const _dbg = [];
+        function dbg(msg) { console.log('[JLZSCY]', msg); _dbg.push(msg); }
         
         // 解析URL参数
         function parseUrlParams() {
@@ -218,7 +225,7 @@
 
             // 动态构建单列卡片（全部黑色）
             const FIELD_DEFS = [
-                { id: 'client',        label: '委托单位',     show: fieldConfig.client },
+                { id: 'client',        label: '证书单位',     show: fieldConfig.client },
                 { id: 'certIdInline',  label: '证书编号',     show: fieldConfig.certId },
                 { id: 'reportType',    label: '报告类型',     show: fieldConfig.reportType },
                 { id: 'instrumentName',label: '仪器名称',     show: fieldConfig.instrumentName },
@@ -239,7 +246,7 @@
                 const raw = cert[f.id];
                 if (!raw) return;
                 const label = f.labelFn ? f.labelFn() : f.label;
-                html += '<div class="bg-white p-4 rounded-xl"><div class="text-xs text-slate-400">' + label + '</div><div class="font-bold text-slate-700">' + raw + '</div></div>';
+                html += '<div class="p-4 rounded-xl"><div class="text-xs font-bold text-slate-800">' + label + '</div><div class="font-bold text-slate-800 text-lg">' + raw + '</div></div>';
             });
             container.innerHTML = html;
 
@@ -259,19 +266,110 @@
             }
         }
         
-        // 显示错误
-        function showError() {
+        // 显示错误（带调试信息）
+        function showError(reason) {
             document.getElementById('loading').classList.add('hidden');
             document.getElementById('error').classList.remove('hidden');
+            if (reason) {
+                dbg('showError: ' + reason);
+            }
+        }
+
+        // 数据源列表（按优先级排序，JSDelivr 国内最快）
+        const GH_DATA_URLS = [
+            'https://cdn.jsdelivr.net/gh/JLZS-888/JLZSCY@main/data/certs.json',
+            'https://jlzs-888.github.io/JLZSCY/data/certs.json',
+            'https://raw.githubusercontent.com/JLZS-888/JLZSCY/main/data/certs.json'
+        ];
+
+        // 带超时的 fetch
+        function fetchWithTimeout(url, timeout) {
+            var controller = new AbortController();
+            var timer = setTimeout(function() { controller.abort(); }, timeout);
+            return fetch(url, { signal: controller.signal }).then(function(res) {
+                clearTimeout(timer);
+                return res;
+            }).catch(function(err) {
+                clearTimeout(timer);
+                throw err;
+            });
+        }
+
+        // 通过证书编号从远程拉取数据（多源容错）
+        async function fetchCertById(certId) {
+            var lastErr = null;
+            for (var i = 0; i < GH_DATA_URLS.length; i++) {
+                var url = GH_DATA_URLS[i] + '?t=' + Date.now();
+                dbg('尝试数据源 ' + (i+1) + ': ' + url);
+                try {
+                    var res = await fetchWithTimeout(url, 6000);
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    var data = await res.json();
+                    dbg('数据源 ' + (i+1) + ' 成功，共 ' + (data.certs ? data.certs.length : 0) + ' 条记录');
+                    // 应用字段配置（如果服务端有配置）
+                    if (data.fieldConfig) {
+                        FIELD_ORDER.forEach(function(f) {
+                            fieldConfig[f] = data.fieldConfig[f] !== false;
+                        });
+                    }
+                    if (!data.certs || !data.certs.length) {
+                        dbg('certs 数组为空');
+                        return null;
+                    }
+                    // 列出所有 ID 方便调试
+                    var allIds = data.certs.map(function(c) { return c.id; });
+                    dbg('所有证书ID: ' + allIds.join(', '));
+                    dbg('查找ID: "' + certId + '"');
+                    var cert = null;
+                    for (var j = 0; j < data.certs.length; j++) {
+                        if (data.certs[j].id === certId) {
+                            cert = data.certs[j];
+                            break;
+                        }
+                    }
+                    if (!cert) {
+                        dbg('未找到匹配的证书');
+                        return null;
+                    }
+                    dbg('找到证书: ' + cert.id);
+                    // 如果证书有 unit 字段，根据它切换标题
+                    if (cert.unit === 'S' || cert.unit === '深圳计量院') {
+                        document.getElementById('defaultHeader').classList.add('hidden');
+                        document.getElementById('szjlyHeader').classList.remove('hidden');
+                    }
+                    return cert;
+                } catch (e) {
+                    lastErr = e;
+                    dbg('数据源 ' + (i+1) + ' 失败: ' + e.message);
+                }
+            }
+            dbg('所有数据源均失败');
+            return null;
         }
         
         // 初始化
-        window.onload = function() {
-            const cert = parseUrlParams();
-            if (cert) {
-                renderCert(cert);
+        window.onload = async function() {
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('id');
+
+            dbg('页面加载完成，URL参数: id=' + id);
+
+            if (id) {
+                // 通过证书编号从远程拉取数据（二维码极简）
+                const cert = await fetchCertById(decodeURIComponent(id));
+                if (cert) {
+                    renderCert(cert);
+                } else {
+                    showError('证书 "' + decodeURIComponent(id) + '" 未找到');
+                }
             } else {
-                showError();
+                // 兼容旧方案：?d= 编码参数（Base64 JSON 或 & 分隔）
+                const cert = parseUrlParams();
+                if (cert) {
+                    renderCert(cert);
+                } else {
+                    showError('无有效参数');
+                }
             }
         };
     </script>
