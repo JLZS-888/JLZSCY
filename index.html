@@ -90,7 +90,8 @@
         <div class="bg-blue-50 p-6 rounded-b-3xl shadow-xl" id="contentArea">
             <!-- 加载中 -->
             <div id="loading" class="text-center py-12">
-                <div class="text-4xl mb-4">📄</div>
+                <div style="display:inline-block;width:32px;height:32px;border:3px solid #dbeafe;border-top-color:#2563eb;border-radius:50%;animation:spin .8s linear infinite;margin-bottom:12px;"></div>
+                <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
                 <p class="text-slate-400">加载中...</p>
             </div>
             
@@ -324,11 +325,11 @@
             'https://raw.githubusercontent.com/JLZS-888/JLZSCY/main/data/certs.json'
         ];
 
-        // 带超时的 fetch
+        // 带超时的 fetch（5秒超时，允许浏览器缓存加速后续请求）
         function fetchWithTimeout(url, timeout) {
             var controller = new AbortController();
             var timer = setTimeout(function() { controller.abort(); }, timeout);
-            return fetch(url, { signal: controller.signal, cache: 'no-store' }).then(function(res) {
+            return fetch(url, { signal: controller.signal }).then(function(res) {
                 clearTimeout(timer);
                 return res;
             }).catch(function(err) {
@@ -339,7 +340,7 @@
 
         // 尝试单个数据源
         async function trySource(url, certId) {
-            var res = await fetchWithTimeout(url, 8000);
+            var res = await fetchWithTimeout(url, 5000);
             if (!res.ok) throw new Error('HTTP ' + res.status);
             var data = await res.json();
             _anySourceOk = true;
@@ -354,49 +355,76 @@
             return { cert: cert, data: data };
         }
 
-        // 通过证书编号从远程拉取数据（多源容错 + 并行请求，谁先返回用谁）
+        // 通过证书编号从远程拉取数据（竞速模式：第一个成功立即返回，不等其他源）
         async function fetchCertById(certId) {
-            // 并行请求所有数据源，谁先成功就用谁
-            var promises = GH_DATA_URLS.map(function(url, i) {
-                var fullUrl = url + '?t=' + Date.now();
-                dbg('尝试数据源 ' + (i+1) + ': ' + fullUrl);
-                return trySource(fullUrl, certId).then(function(result) {
-                    dbg('数据源 ' + (i+1) + ' 成功');
-                    return { index: i, result: result };
-                }).catch(function(e) {
-                    dbg('数据源 ' + (i+1) + ' 失败: ' + e.message);
-                    return { index: i, result: null, error: e };
-                });
+            var resolved = false;
+            var resolveFirst = null;
+
+            // 创建一个 deferred promise
+            var racePromise = new Promise(function(resolve) { resolveFirst = resolve; });
+
+            // 逐个启动请求（第一个立即发，后续延迟200ms作为备用，避免同时请求浪费带宽）
+            GH_DATA_URLS.forEach(function(url, i) {
+                var delay = i === 0 ? 0 : 200;
+                setTimeout(async function() {
+                    if (resolved) return;
+                    var fullUrl = url + '?t=' + Date.now();
+                    dbg('尝试数据源 ' + (i+1) + ': ' + fullUrl);
+                    try {
+                        var result = await trySource(fullUrl, certId);
+                        if (resolved) return;
+                        if (result && result.cert) {
+                            resolved = true;
+                            dbg('数据源 ' + (i+1) + ' 命中');
+                            resolveFirst(result);
+                        } else {
+                            // 数据源成功但没找到证书，标记以便区分网络错误
+                            _anySourceOk = true;
+                            dbg('数据源 ' + (i+1) + ' 返回数据但未匹配');
+                            // 如果是最后一个源且没找到证书
+                            if (i === GH_DATA_URLS.length - 1 && !resolved) {
+                                resolved = true;
+                                resolveFirst(null);
+                            }
+                        }
+                    } catch (e) {
+                        dbg('数据源 ' + (i+1) + ' 失败: ' + e.message);
+                    }
+                }, delay);
             });
 
-            var results = await Promise.allSettled(promises);
-            // 找到第一个成功的
-            for (var k = 0; k < results.length; k++) {
-                if (results[k].status === 'fulfilled' && results[k].value.result) {
-                    var r = results[k].value;
-                    var data = r.result.data;
-                    // 应用字段配置
-                    if (data && data.fieldConfig) {
-                        FIELD_ORDER.forEach(function(f) {
-                            fieldConfig[f] = data.fieldConfig[f] !== false;
-                        });
-                    }
-                    var cert = r.result.cert;
-                    if (cert) {
-                        dbg('找到证书: ' + cert.id + ' (数据源 ' + (r.index+1) + ')');
-                        // 如果证书有 unit 字段，根据它切换标题
-                        if (cert.unit === 'S' || cert.unit === '深圳计量院') {
-                            document.getElementById('defaultHeader').classList.add('hidden');
-                            document.getElementById('szjlyHeader').classList.remove('hidden');
-                        }
-                        return cert;
-                    }
-                    // 数据源成功但没找到证书，继续看其他源
-                    dbg('数据源 ' + (r.index+1) + ' 返回数据但未找到匹配证书');
+            // 总超时保护：5.5秒后如果还没结果就返回 null
+            var safetyTimer = setTimeout(function() {
+                if (!resolved) {
+                    resolved = true;
+                    resolveFirst(null);
                 }
+            }, 5500);
+
+            try {
+                var result = await racePromise;
+                clearTimeout(safetyTimer);
+                if (!result) return null;
+
+                var cert = result.cert;
+                var data = result.data;
+
+                // 应用字段配置
+                if (data && data.fieldConfig) {
+                    FIELD_ORDER.forEach(function(f) {
+                        fieldConfig[f] = data.fieldConfig[f] !== false;
+                    });
+                }
+
+                if (cert.unit === 'S' || cert.unit === '深圳计量院') {
+                    document.getElementById('defaultHeader').classList.add('hidden');
+                    document.getElementById('szjlyHeader').classList.remove('hidden');
+                }
+                return cert;
+            } catch (e) {
+                clearTimeout(safetyTimer);
+                return null;
             }
-            dbg('所有数据源均失败或未找到证书');
-            return null;
         }
         
         // 初始化
@@ -407,8 +435,22 @@
             dbg('页面加载完成，URL参数: id=' + id);
 
             if (id) {
+                // 6秒总超时兜底（防止所有源都挂但 promise 永远不 resolve）
+                var timeoutId = setTimeout(function() {
+                    if (!window.__certLoaded) {
+                        window.__certLoaded = true;
+                        showError('证书 "' + decodeURIComponent(id) + '" 加载超时', true);
+                    }
+                }, 6000);
+                window.__certLoaded = false;
+
                 // 通过证书编号从远程拉取数据（二维码极简）
                 const cert = await fetchCertById(decodeURIComponent(id));
+                clearTimeout(timeoutId);
+
+                if (window.__certLoaded) return; // 超时已处理
+                window.__certLoaded = true;
+
                 if (cert) {
                     renderCert(cert);
                 } else {
@@ -431,3 +473,4 @@
     </script>
 </body>
 </html>
+
