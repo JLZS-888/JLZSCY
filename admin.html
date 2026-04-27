@@ -83,7 +83,7 @@
 
             </div>
 
-            <div class="mt-2 text-[10px] opacity-70 font-mono">备份位置: J:\project_20260420_172121\projects\jlzs-data.json</div>
+            <div class="mt-2 text-[10px] opacity-70 font-mono">备份位置: J:\project_20260420_172121\projects\jlzscy-data.json</div>
 
             <div class="mt-3 pt-3 border-t border-amber-400 flex gap-2">
 
@@ -436,7 +436,7 @@
 
         function checkLogin() {
 
-            if (localStorage.getItem('jlzs_logged_in') === 'true') {
+            if (localStorage.getItem('jlzscy_logged_in') === 'true') {
 
                 document.getElementById('loginModal').classList.add('hidden');
 
@@ -460,7 +460,7 @@
 
             if (user === LOGIN_USER && pass === LOGIN_PASS) {
 
-                localStorage.setItem('jlzs_logged_in', 'true');
+                localStorage.setItem('jlzscy_logged_in', 'true');
 
                 document.getElementById('loginModal').classList.add('hidden');
 
@@ -502,9 +502,9 @@
 
         // 本地存储键名
 
-        const STORAGE_KEY = 'jlzs_certs';
+        const STORAGE_KEY = 'jlzscy_certs';
 
-        const CONFIG_KEY = 'jlzs_config';
+        const CONFIG_KEY = 'jlzscy_config';
 
         
 
@@ -531,9 +531,9 @@
         
 
         // 查询页基础URL - 固定指向 GitHub Pages
-        const QUERY_BASE_URL = 'https://jlzs-888.github.io/CYXT/index.html';
+        const QUERY_BASE_URL = 'https://jlzs-888.github.io/JLZSCY/index.html';
         const GH_OWNER = 'JLZS-888';
-        const GH_REPO = 'CYXT';
+        const GH_REPO = 'JLZSCY';
         // GitHub Raw 地址（用于 index.html 查询端拉取数据）
         const DATA_RAW_URL = 'https://raw.githubusercontent.com/' + GH_OWNER + '/' + GH_REPO + '/main/data/certs.json';
 
@@ -1072,7 +1072,7 @@
 
         // 从 GitHub 拉取远程数据并合并到本地（不会覆盖本地已有证书）
         async function pullAndMerge() {
-            var pat = localStorage.getItem('gh_pat') || '';
+            var pat = localStorage.getItem('jlzscy_gh_pat') || '';
             var statusEl = document.getElementById('saveStatus');
             var detailEl = document.getElementById('syncDetail');
             if (!pat) return;
@@ -1132,7 +1132,7 @@
         async function syncDataToGitHub() {
             var statusEl = document.getElementById('saveStatus');
             var detailEl = document.getElementById('syncDetail');
-            var pat = localStorage.getItem('gh_pat') || '';
+            var pat = localStorage.getItem('jlzscy_gh_pat') || '';
             if (!pat) {
                 if (statusEl) { statusEl.textContent = '请先填写Token'; statusEl.className = 'text-[10px] bg-red-600 px-3 py-1 rounded-full font-bold'; }
                 if (detailEl) { detailEl.classList.remove('hidden'); detailEl.textContent = '错误：未配置 GitHub Token，请在下方填写后重试'; }
@@ -1308,7 +1308,7 @@
 
         const BACKUP_FOLDER = 'J:\\project_20260420_172121\\projects';
 
-        const BACKUP_FILENAME = 'jlzs-data.json';
+        const BACKUP_FILENAME = 'jlzscy-data.json';
 
         
 
@@ -1344,7 +1344,7 @@
 
             const now = new Date();
 
-            localStorage.setItem('jlzs_last_backup', now.toISOString());
+            localStorage.setItem('jlzscy_last_backup', now.toISOString());
 
             updateLastBackupTime();
 
@@ -1360,7 +1360,7 @@
 
         function updateLastBackupTime() {
 
-            const lastBackup = localStorage.getItem('jlzs_last_backup');
+            const lastBackup = localStorage.getItem('jlzscy_last_backup');
 
             const el = document.getElementById('lastBackup');
 
@@ -1511,20 +1511,20 @@ function saveGitHubToken() {
     const token = document.getElementById('githubToken').value.trim();
     if (!token) { document.getElementById('tokenStatus').textContent = 'please input token'; return; }
     if (!token.startsWith('ghp_')) { document.getElementById('tokenStatus').textContent = 'should start with ghp_'; return; }
-    localStorage.setItem('gh_pat', token);
+    localStorage.setItem('jlzscy_gh_pat', token);
     document.getElementById('tokenStatus').textContent = 'saved';
     document.getElementById('tokenStatus').className = 'text-xs mt-1 text-green-600';
 }
 function saveCFToken() {
     const t = document.getElementById('cfToken').value.trim();
     if (!t) { document.getElementById('cfStatus').textContent = '不能为空'; return; }
-    localStorage.setItem('cf_token', t);
+    localStorage.setItem('jlzscy_cf_token', t);
     document.getElementById('cfStatus').textContent = '已保存';
     document.getElementById('cfStatus').style.color = 'green';
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    const saved = localStorage.getItem('gh_pat');
+    const saved = localStorage.getItem('jlzscy_gh_pat');
     if (saved) {
         document.getElementById('githubToken').value = saved;
         document.getElementById('tokenStatus').textContent = 'saved';
