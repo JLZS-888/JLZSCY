@@ -21,6 +21,7 @@
         document.write('<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>');
     }
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 
 </head>
 
@@ -211,6 +212,92 @@
 
 
 
+                <!-- Excel 批量导入区 -->
+
+                <div class="bg-emerald-50 p-6 rounded-2xl border-2 border-dashed border-emerald-200 text-center">
+
+                    <h2 class="font-bold text-emerald-700 mb-2 flex items-center justify-center">
+
+                        <span class="mr-2">📊</span> Excel 批量导入证书
+
+                    </h2>
+
+                    <p class="text-[10px] text-emerald-400 mb-4">上传 .xlsx / .xls 文件，自动识别列生成多个证书</p>
+
+                    <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" class="hidden" onchange="handleExcelImport(this)">
+
+                    <button onclick="document.getElementById('excelInput').click()" id="excelBtn" class="bg-emerald-600 text-white px-10 py-3 rounded-xl font-bold shadow-md hover:bg-emerald-700 transition active:scale-95">
+
+                        上传 Excel 批量识别
+
+                    </button>
+
+                    <div id="excelStatus" class="mt-3 text-xs text-emerald-500 hidden font-bold"></div>
+
+                </div>
+
+
+
+                <!-- Excel 批量预览区（初始隐藏） -->
+
+                <div id="excelPreview" class="bg-white p-6 rounded-2xl shadow-sm border-2 border-emerald-200 hidden">
+
+                    <div class="flex justify-between items-center mb-4">
+
+                        <h2 class="font-bold text-slate-800 text-sm uppercase">📋 批量预览 (<span id="previewCount">0</span> 条)</h2>
+
+                        <div class="flex gap-2">
+
+                            <button onclick="saveAllBatchCerts()" class="px-4 py-2 bg-emerald-500 text-white rounded-lg text-sm font-bold hover:bg-emerald-600 transition">💾 一键全部保存</button>
+
+                            <button onclick="cancelBatchPreview()" class="px-4 py-2 bg-slate-200 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-300 transition">取消</button>
+
+                        </div>
+
+                    </div>
+
+                    <div class="overflow-x-auto max-h-96 overflow-y-auto rounded-xl border border-slate-200">
+
+                        <table class="w-full text-xs text-left">
+
+                            <thead class="bg-emerald-50 sticky top-0">
+
+                                <tr>
+
+                                    <th class="p-2 font-bold text-slate-600 border-b">#</th>
+
+                                    <th class="p-2 font-bold text-slate-600 border-b">证书编号</th>
+
+                                    <th class="p-2 font-bold text-slate-600 border-b">证书单位</th>
+
+                                    <th class="p-2 font-bold text-slate-600 border-b">仪器名称</th>
+
+                                    <th class="p-2 font-bold text-slate-600 border-b">规格型号</th>
+
+                                    <th class="p-2 font-bold text-slate-600 border-b">出厂编号</th>
+
+                                    <th class="p-2 font-bold text-slate-600 border-b">制造厂</th>
+
+                                    <th class="p-2 font-bold text-slate-600 border-b">校准日期</th>
+
+                                    <th class="p-2 font-bold text-slate-600 border-b">有效期</th>
+
+                                    <th class="p-2 font-bold text-slate-600 border-b">操作</th>
+
+                                </tr>
+
+                            </thead>
+
+                            <tbody id="previewBody"></tbody>
+
+                        </table>
+
+                    </div>
+
+                </div>
+
+
+
                 <div class="bg-white p-8 rounded-2xl shadow-sm border border-slate-100">
 
                     <h2 id="formTitle" class="font-bold text-slate-800 mb-6 border-b pb-2 text-sm uppercase">📝 录入证书详情</h2>
@@ -355,6 +442,19 @@
 
                         </div>
 
+                    </div>
+
+                    <!-- 证书级字段显示设置（仅编辑时显示） -->
+                    <div id="certFieldConfigSection" class="hidden mt-6 pt-5 border-t border-slate-200">
+                        <h3 class="font-bold text-slate-700 mb-3 text-sm flex items-center gap-2">
+                            <span>👁️</span> 当前证书字段显示设置
+                            <span class="text-[10px] text-slate-400 font-normal">（仅影响此证书，不影响其他证书）</span>
+                        </h3>
+                        <div id="certFieldConfig" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2"></div>
+                        <div class="mt-3 flex gap-2">
+                            <button type="button" onclick="resetCertFieldConfig()" class="px-3 py-1.5 text-xs bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200 transition">恢复默认（全显示）</button>
+                            <button type="button" onclick="useGlobalAsCertConfig()" class="px-3 py-1.5 text-xs bg-blue-50 text-blue-500 rounded-lg hover:bg-blue-100 transition">使用全局配置</button>
+                        </div>
                     </div>
 
                     <div class="flex gap-4 mt-8">
@@ -514,6 +614,7 @@
         
 
         let certs = [];
+        let editingId = null; // 正在编辑的证书原始 ID
 
         let fieldConfig = {
 
@@ -535,13 +636,24 @@
 
         
 
-        // 查询页基础URL - 固定指向 GitHub Pages
+        // 查询页基础URL - 省略 index.html 缩短二维码URL长度
         const QUERY_BASE_URL = 'https://jlzs-888.github.io/JLZSCY/index.html';
         const GH_OWNER = 'JLZS-888';
         const GH_REPO = 'JLZSCY';
         // GitHub Raw 地址（用于 index.html 查询端拉取数据）
         const DATA_RAW_URL = 'https://raw.githubusercontent.com/' + GH_OWNER + '/' + GH_REPO + '/main/data/certs.json';
 
+
+        // 生成短ID（避免二维码过于密集）
+        function genShortId() {
+            var chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // 去掉易混淆的 I,L,O,0,1
+            var id;
+            do {
+                id = '';
+                for (var i = 0; i < 4; i++) id += chars[Math.floor(Math.random() * chars.length)];
+            } while (certs.some(c => c.id === id));
+            return id;
+        }
 
         // 从localStorage加载数据
 
@@ -622,12 +734,13 @@
             for (let f of fields) {
 
                 const checked = fieldConfig[f] !== false;
-
+                // 委托单号勾选变化时额外联动输入框状态
+                const extra = f === 'orderNumber' ? "; syncOrderNoState()" : "";
                 html += `
 
                     <label class="flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 cursor-pointer">
 
-                        <input type="checkbox" id="cfg_${f}" ${checked ? 'checked' : ''} onchange="fieldConfig['${f}'] = this.checked" class="w-4 h-4 accent-blue-500">
+                        <input type="checkbox" id="cfg_${f}" ${checked ? 'checked' : ''} onchange="fieldConfig['${f}'] = this.checked${extra}" class="w-4 h-4 accent-blue-500">
 
                         <span class="text-sm text-slate-600">${labels[f]}</span>
 
@@ -636,7 +749,41 @@
             }
 
             document.getElementById('fieldConfig').innerHTML = html;
+            // 渲染完后同步委托单号输入框状态
+            syncOrderNoState();
 
+        }
+
+        // 证书级字段显示配置（每个证书独立，不影响其他证书）
+        var certFieldConfig = {}; // 当前编辑证书的字段配置
+
+        function renderCertFieldConfig() {
+            var fields = ['certId', 'reportType', 'result', 'orderNumber', 'client', 'instrumentName', 'manufacturer', 'calibrationDate', 'expiryDate', 'factoryNumber', 'model'];
+            var labels = {
+                certId: '证书编号', reportType: '报告类型', result: '校准/检定结果',
+                orderNumber: '委托单号', client: '委托单位', instrumentName: '仪器名称',
+                manufacturer: '制造厂', calibrationDate: '校准日期', expiryDate: '有效期至',
+                factoryNumber: '出厂编号', model: '规格型号'
+            };
+            var html = '';
+            for (var i = 0; i < fields.length; i++) {
+                var f = fields[i];
+                var checked = certFieldConfig[f] !== false;
+                html += '<label class="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 cursor-pointer text-xs">' +
+                    '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="certFieldConfig[\'' + f + '\']=this.checked" class="w-3.5 h-3.5 accent-emerald-500">' +
+                    '<span class="text-slate-600">' + labels[f] + '</span></label>';
+            }
+            document.getElementById('certFieldConfig').innerHTML = html;
+        }
+
+        function resetCertFieldConfig() {
+            certFieldConfig = {};
+            renderCertFieldConfig();
+        }
+
+        function useGlobalAsCertConfig() {
+            certFieldConfig = JSON.parse(JSON.stringify(fieldConfig));
+            renderCertFieldConfig();
         }
 
         
@@ -672,21 +819,32 @@
         
 
         function generateOrderNo() {
-
+            // 未勾选委托单号时不自动生成
+            if (!fieldConfig.orderNumber) return;
             const date = document.getElementById('date').value;
-
             if (date) {
-
                 const d = new Date(date);
-
                 const y = d.getFullYear().toString().slice(-2);
-
                 const m = (d.getMonth() + 1).toString().padStart(2, '0');
-
                 document.getElementById('orderNo').value = `${y}${m}WD-`;
-
             }
+        }
 
+        // 根据勾选状态同步委托单号输入框的启用/禁用
+        function syncOrderNoState() {
+            const input = document.getElementById('orderNo');
+            if (fieldConfig.orderNumber) {
+                input.disabled = false;
+                input.classList.remove('bg-slate-100', 'cursor-not-allowed', 'text-slate-400');
+                input.classList.add('bg-slate-50/50');
+                input.placeholder = '自动生成';
+            } else {
+                input.value = '';
+                input.disabled = true;
+                input.classList.remove('bg-slate-50/50');
+                input.classList.add('bg-slate-100', 'cursor-not-allowed', 'text-slate-400');
+                input.placeholder = '（未勾选，不显示）';
+            }
         }
 
         
@@ -753,15 +911,25 @@
 
         async function saveCert() {
 
-            const certNo = document.getElementById('certNo').value.trim().toUpperCase();
-
-            const id = certNo || 'TEMP_' + Date.now();
-
+            // ID 永远用短ID，保证二维码稀疏；证书编号存到 certNo 字段
+            const id = editingId || genShortId();
+            // 编辑模式：certNo 字段 disabled，从原始证书对象取值，防止丢失
+            let certNo;
+            if (editingId) {
+                const origCert = certs.find(c => c.id === editingId);
+                // 兼容老证书（certNo 可能未定义，从表单取显示值）
+                certNo = origCert && origCert.certNo !== undefined
+                    ? origCert.certNo
+                    : document.getElementById('certNo').value.trim().toUpperCase();
+            } else {
+                certNo = document.getElementById('certNo').value.trim().toUpperCase();
+            }
             
 
             const certData = {
 
                 id: id,
+                certNo: certNo || '',
 
                 unit: document.getElementById('unit').value,
 
@@ -785,7 +953,10 @@
 
                 model: document.getElementById('model').value,
 
-                createdAt: new Date().toISOString()
+                createdAt: editingId ? (certs.find(c=>c.id===editingId)||{}).createdAt || new Date().toISOString() : new Date().toISOString(),
+
+                // 证书级字段配置（仅在有非默认配置时存储）
+                fieldConfig: Object.keys(certFieldConfig).length > 0 ? JSON.parse(JSON.stringify(certFieldConfig)) : undefined
 
             };
 
@@ -859,6 +1030,10 @@
             updateResult();
 
             document.getElementById('formTitle').innerText = '📝 录入证书详情';
+            editingId = null; // 退出编辑模式
+            certFieldConfig = {};
+            document.getElementById('certFieldConfigSection').classList.add('hidden');
+            syncOrderNoState();
 
         }
 
@@ -903,6 +1078,392 @@
         }
 
         
+
+        // ========== Excel 批量导入 ==========
+
+        // Excel 列关键词映射表：每个字段对应多个可能的关键词
+        var EXCEL_KEYWORDS = {
+            certNo:         ['证书编号', '证书号', '编号'],
+            client:         ['委托单位', '证书单位', '送检单位', '客户', '委托方', '使用单位', '受检单位'],
+            instrumentName: ['仪器名称', '设备名称', '被检器具', '器具名称', '仪器', '设备'],
+            manufacturer:   ['制造厂', '生产厂家', '制造商', '厂家'],
+            model:          ['规格型号', '型号', '型号规格'],
+            factoryNumber:  ['出厂编号', '出厂号', '编号'],
+            calibrationDate:['校准日期', '检定日期', '日期'],
+            orderNumber:    ['委托单号', '委托编号', '任务单号', '单号']
+        };
+
+        // 单值字段：整批证书共用的字段（关键词单独一行，值在下一行）
+        var SINGLE_VALUE_FIELDS = ['client'];
+
+        // 多值字段：每份证书独立的字段（关键词在表头行，数据在下面多行）
+        var MULTI_VALUE_FIELDS = ['certNo', 'instrumentName', 'manufacturer', 'model', 'factoryNumber', 'calibrationDate', 'orderNumber'];
+
+        // 精确匹配关键词（优先级高，避免"编号"冲突）
+        var EXACT_KEYWORDS = {
+            certNo:         ['证书编号', '证书号'],
+            factoryNumber:  ['出厂编号', '出厂号']
+        };
+
+        // 临时存储批量解析结果
+        var batchCerts = [];
+
+        // 检查单元格是否匹配某个字段的关键词
+        function matchField(cellVal, field) {
+            cellVal = String(cellVal || '').trim();
+            if (!cellVal) return false;
+            // 精确匹配
+            if (EXACT_KEYWORDS[field]) {
+                for (var k = 0; k < EXACT_KEYWORDS[field].length; k++) {
+                    if (cellVal === EXACT_KEYWORDS[field][k]) return true;
+                }
+            }
+            // 模糊匹配
+            var keywords = EXCEL_KEYWORDS[field] || [];
+            for (var k = 0; k < keywords.length; k++) {
+                if (cellVal.indexOf(keywords[k]) >= 0) return true;
+            }
+            return false;
+        }
+
+        // 检查一行是否包含单值字段关键词
+        // 返回 { field, col, sameRow: true/false } 或 null
+        // sameRow=true 表示值在同一行后面，false 表示值在下一行
+        function detectSingleFieldRow(row) {
+            for (var col = 0; col < row.length; col++) {
+                var cellVal = String(row[col] || '').trim();
+                if (!cellVal) continue;
+                for (var i = 0; i < SINGLE_VALUE_FIELDS.length; i++) {
+                    var field = SINGLE_VALUE_FIELDS[i];
+                    if (matchField(cellVal, field)) {
+                        // 检查同一行后面是否有值
+                        var sameRowVal = '';
+                        for (var c = col + 1; c < row.length; c++) {
+                            var v = String(row[c] || '').trim();
+                            if (v) { sameRowVal = v; break; }
+                        }
+                        return { field: field, col: col, hasSameRowValue: !!sameRowVal, sameRowValue: sameRowVal };
+                    }
+                }
+            }
+            return null;
+        }
+
+        // 解析 Excel，支持混合布局
+        // 单值字段：关键词单独一行，值在下一行
+        // 多值字段：关键词横向排列在表头行，数据在下面多行（一行=一份证书）
+        function parseExcelHybrid(rows) {
+            var singleValues = {};    // { client: '深圳某某公司' }
+            var columnMapping = {};   // { certNo: 0, instrumentName: 2, ... }
+            var dataStartRow = -1;
+            var maxSearch = Math.min(rows.length, 30);
+
+            var r = 0;
+            while (r < maxSearch) {
+                var row = rows[r];
+
+                // 检查是否为单值字段行（如"委托单位"）
+                var singleField = detectSingleFieldRow(row);
+                if (singleField) {
+                    if (singleField.hasSameRowValue) {
+                        // 值在同一行后面（如 A列="委托单位"，B列="深圳某某公司"）
+                        singleValues[singleField.field] = singleField.sameRowValue;
+                        r += 1;
+                    } else {
+                        // 值在下一行
+                        if (r + 1 < rows.length) {
+                            var nextRow = rows[r + 1];
+                            var valParts = [];
+                            for (var c = 0; c < nextRow.length; c++) {
+                                var v = String(nextRow[c] || '').trim();
+                                if (v) valParts.push(v);
+                            }
+                            singleValues[singleField.field] = valParts.join(' ');
+                            r += 2;
+                        } else {
+                            r++;
+                        }
+                    }
+                    continue;
+                }
+
+                // 检查是否为多值表头行（包含多个多值字段关键词）
+                var headerFilled = 0;
+                for (var col = 0; col < row.length; col++) {
+                    var cellVal = String(row[col] || '').trim();
+                    if (!cellVal) continue;
+                    for (var i = 0; i < MULTI_VALUE_FIELDS.length; i++) {
+                        var field = MULTI_VALUE_FIELDS[i];
+                        if (columnMapping[field] !== undefined) continue;
+                        if (matchField(cellVal, field)) {
+                            columnMapping[field] = col;
+                            headerFilled++;
+                            break;
+                        }
+                    }
+                }
+
+                if (headerFilled >= 2) {
+                    // 找到表头行，数据从下一行开始
+                    dataStartRow = r + 1;
+                    break;
+                }
+
+                r++;
+            }
+
+            if (dataStartRow < 0 || Object.keys(columnMapping).length < 2) {
+                return null; // 未找到有效表头
+            }
+
+            return {
+                singleValues: singleValues,
+                columnMapping: columnMapping,
+                dataStartRow: dataStartRow
+            };
+        }
+
+        // 从一行数据中提取证书信息
+        function extractCertFromRow(row, columnMapping, singleValues) {
+            var getValue = function(field) {
+                if (columnMapping[field] === undefined) return '';
+                var val = row[columnMapping[field]];
+                if (val === undefined || val === null) return '';
+                return String(val).trim();
+            };
+            // 解析日期格式（Excel 数字日期或字符串日期）
+            var rawDate = getValue('calibrationDate');
+            var formattedDate = '';
+            if (rawDate) {
+                if (/^\d{4}[-/]\d{1,2}[-/]\d{1,2}$/.test(rawDate)) {
+                    formattedDate = rawDate.replace(/\//g, '-');
+                } else {
+                    // 尝试 Excel 数字日期
+                    var numDate = parseFloat(rawDate);
+                    if (!isNaN(numDate) && numDate > 40000 && numDate < 60000) {
+                        // Excel 序列日期转 JS 日期
+                        var d = new Date((numDate - 25569) * 86400000);
+                        formattedDate = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+                    } else {
+                        // 尝试通用日期解析
+                        var parsed = new Date(rawDate);
+                        if (!isNaN(parsed.getTime())) {
+                            formattedDate = parsed.getFullYear() + '-' + String(parsed.getMonth()+1).padStart(2,'0') + '-' + String(parsed.getDate()).padStart(2,'0');
+                        } else {
+                            formattedDate = rawDate; // 保留原始值
+                        }
+                    }
+                }
+            }
+            // 计算有效期（默认1年）
+            var expiryDate = '';
+            if (formattedDate) {
+                try {
+                    var cd = new Date(formattedDate);
+                    cd.setMonth(cd.getMonth() + 12);
+                    cd.setDate(cd.getDate() - 1);
+                    expiryDate = cd.toISOString().split('T')[0];
+                } catch(e) {}
+            }
+
+            // 单值字段（如 client）优先用单值结果，没有则从列映射取
+            var clientVal = singleValues.client || getValue('client');
+
+            return {
+                certNo: getValue('certNo'),
+                client: clientVal,
+                instrumentName: getValue('instrumentName'),
+                manufacturer: getValue('manufacturer'),
+                model: getValue('model'),
+                factoryNumber: getValue('factoryNumber'),
+                calibrationDate: formattedDate,
+                expiryDate: expiryDate,
+                orderNumber: getValue('orderNumber'),
+                reportType: '校准',
+                result: '符合要求',
+                unit: '',
+                createdAt: new Date().toISOString()
+            };
+        }
+
+        // 判断一行是否为有效数据行（至少有一个关键字段有值）
+        function isDataValidRow(cert) {
+            return !!(cert.certNo || cert.client || cert.instrumentName || cert.factoryNumber || cert.model);
+        }
+
+        async function handleExcelImport(input) {
+            var file = input.files[0];
+            if (!file) return;
+
+            var statusEl = document.getElementById('excelStatus');
+            statusEl.classList.remove('hidden');
+            statusEl.textContent = '正在解析 Excel 文件...';
+
+            try {
+                var arrayBuffer = await file.arrayBuffer();
+                var workbook = XLSX.read(arrayBuffer, { type: 'array' });
+                var firstSheetName = workbook.SheetNames[0];
+                var sheet = workbook.Sheets[firstSheetName];
+                // 转为二维数组，保留空值
+                var rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+
+                if (rows.length < 2) {
+                    statusEl.textContent = '✗ 文件内容为空或只有表头';
+                    return;
+                }
+
+                // 混合解析：支持单值字段（委托单位等单独一行）+ 多值表头行
+                var result = parseExcelHybrid(rows);
+                if (!result) {
+                    statusEl.textContent = '✗ 未识别到表头（未找到证书编号、仪器名称等关键词列）';
+                    return;
+                }
+
+                var columnMapping = result.columnMapping;
+                var singleValues = result.singleValues;
+                var dataStartRow = result.dataStartRow;
+
+                // 提取数据行
+                batchCerts = [];
+                for (var r = dataStartRow; r < rows.length; r++) {
+                    var row = rows[r];
+                    // 跳过空行：检查所有映射的数据列是否都为空
+                    var allFieldsEmpty = true;
+                    for (var field in columnMapping) {
+                        var colIdx = columnMapping[field];
+                        var cellVal = (colIdx < row.length) ? String(row[colIdx] || '').trim() : '';
+                        if (cellVal !== '') {
+                            allFieldsEmpty = false;
+                            break;
+                        }
+                    }
+                    if (allFieldsEmpty) continue;
+                    var cert = extractCertFromRow(row, columnMapping, singleValues);
+                    if (isDataValidRow(cert)) {
+                        batchCerts.push(cert);
+                    }
+                }
+
+                if (batchCerts.length === 0) {
+                    statusEl.textContent = '✗ 未提取到有效的证书数据行';
+                    return;
+                }
+
+                var extraInfo = '';
+                if (singleValues.client) {
+                    extraInfo = '，委托单位: ' + singleValues.client;
+                }
+                statusEl.textContent = '✓ 识别到 ' + batchCerts.length + ' 条证书' + extraInfo + '，请预览确认';
+                renderBatchPreview();
+
+            } catch (e) {
+                statusEl.textContent = '✗ 解析失败: ' + e.message;
+                console.error('Excel import error:', e);
+            }
+            input.value = '';
+        }
+
+        // 渲染批量预览表格
+        function renderBatchPreview() {
+            var previewEl = document.getElementById('excelPreview');
+            previewEl.classList.remove('hidden');
+            document.getElementById('previewCount').textContent = batchCerts.length;
+            var tbody = document.getElementById('previewBody');
+            var html = '';
+            batchCerts.forEach(function(cert, idx) {
+                html += '<tr class="border-b border-slate-100 hover:bg-emerald-50">' +
+                    '<td class="p-2 text-slate-400">' + (idx + 1) + '</td>' +
+                    '<td class="p-2 font-bold text-blue-600">' + (cert.certNo || '-') + '</td>' +
+                    '<td class="p-2">' + (cert.client || '-') + '</td>' +
+                    '<td class="p-2">' + (cert.instrumentName || '-') + '</td>' +
+                    '<td class="p-2">' + (cert.model || '-') + '</td>' +
+                    '<td class="p-2">' + (cert.factoryNumber || '-') + '</td>' +
+                    '<td class="p-2">' + (cert.manufacturer || '-') + '</td>' +
+                    '<td class="p-2">' + (cert.calibrationDate || '-') + '</td>' +
+                    '<td class="p-2">' + (cert.expiryDate || '-') + '</td>' +
+                    '<td class="p-2"><button onclick="removeBatchRow(' + idx + ')" class="text-red-500 hover:text-red-700 font-bold">删除</button>' +
+                    '<button onclick="fillFormFromBatch(' + idx + ')" class="text-blue-500 hover:text-blue-700 font-bold ml-2" title="填入表单单独编辑">填入</button></td>' +
+                    '</tr>';
+            });
+            tbody.innerHTML = html;
+            previewEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        // 删除预览中某一行
+        function removeBatchRow(idx) {
+            batchCerts.splice(idx, 1);
+            if (batchCerts.length === 0) {
+                cancelBatchPreview();
+                return;
+            }
+            renderBatchPreview();
+        }
+
+        // 从预览行填入录入表单（用于单独编辑后保存）
+        function fillFormFromBatch(idx) {
+            var cert = batchCerts[idx];
+            if (!cert) return;
+            resetForm();
+            if (cert.certNo) document.getElementById('certNo').value = cert.certNo;
+            if (cert.client) document.getElementById('client').value = cert.client;
+            if (cert.instrumentName) document.getElementById('inst').value = cert.instrumentName;
+            if (cert.manufacturer) document.getElementById('manu').value = cert.manufacturer;
+            if (cert.model) document.getElementById('model').value = cert.model;
+            if (cert.factoryNumber) document.getElementById('fact').value = cert.factoryNumber;
+            if (cert.calibrationDate) {
+                document.getElementById('date').value = cert.calibrationDate;
+                generateOrderNo();
+                calculateExpiryDate();
+            }
+            if (cert.orderNumber) document.getElementById('orderNo').value = cert.orderNumber;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // 取消批量预览
+        function cancelBatchPreview() {
+            document.getElementById('excelPreview').classList.add('hidden');
+            batchCerts = [];
+            document.getElementById('excelStatus').classList.add('hidden');
+        }
+
+        // 一键批量保存所有预览证书
+        async function saveAllBatchCerts() {
+            if (batchCerts.length === 0) return;
+            if (!confirm('确认批量保存 ' + batchCerts.length + ' 条证书？')) return;
+
+            var savedCount = 0;
+            var skippedCount = 0;
+            batchCerts.forEach(function(cert) {
+                var id = genShortId();
+                cert.id = id;
+                // 检查是否已存在（按 certNo 去重）
+                var exists = false;
+                if (cert.certNo) {
+                    exists = certs.some(function(c) {
+                        return c.certNo && c.certNo === cert.certNo;
+                    });
+                }
+                if (exists) {
+                    skippedCount++;
+                } else {
+                    certs.unshift(cert);
+                    savedCount++;
+                }
+            });
+
+            saveToStorage();
+            renderList();
+            updateStats();
+            updateSuggestions();
+            await syncDataToGitHub();
+
+            cancelBatchPreview();
+            alert('批量保存完成！新增 ' + savedCount + ' 条' + (skippedCount > 0 ? '，跳过重复 ' + skippedCount + ' 条' : '') + '，现有共 ' + certs.length + ' 条');
+        }
+
+
+        // ========== Word 导入（原有） ==========
+
 
         async function handleWordImport(input) {
 
@@ -1193,8 +1754,9 @@
 
                 // 第二步：构建推送数据
                 var exportCerts = certs.map(function(c) {
-                    return {
+                    var obj = {
                         id: c.id,
+                        certNo: c.certNo || '',
                         reportType: c.reportType || '',
                         result: c.result || '',
                         orderNumber: c.orderNumber || '',
@@ -1205,8 +1767,14 @@
                         expiryDate: c.expiryDate || '',
                         factoryNumber: c.factoryNumber || '',
                         model: c.model || '',
-                        unit: c.unit || ''
+                        unit: c.unit || '',
+                        createdAt: c.createdAt || ''
                     };
+                    // 证书级字段配置（仅非空时导出）
+                    if (c.fieldConfig && Object.keys(c.fieldConfig).length > 0) {
+                        obj.fieldConfig = c.fieldConfig;
+                    }
+                    return obj;
                 });
                 // 附带字段配置
                 var payload = {
@@ -1269,11 +1837,14 @@
         function editCert(id) {
             const cert = certs.find(c => c.id === id);
             if (!cert) return;
+            editingId = id; // 记录正在编辑的证书原始 ID，保存时保持不变
             document.getElementById('reportType').value = cert.reportType || '校准';
             document.getElementById('unit').value = cert.unit || '';
             updateDateLabel();
             updateResult();
-            document.getElementById('certNo').value = cert.id.startsWith('TEMP_') ? '' : cert.id;
+            // 优先显示 certNo，没有则显示 id（兼容老证书）
+            const displayCertNo = cert.certNo !== undefined ? cert.certNo : (cert.id.startsWith('TEMP_') ? '' : cert.id);
+            document.getElementById('certNo').value = displayCertNo;
             document.getElementById('certNo').disabled = true;
             document.getElementById('orderNo').value = cert.orderNumber || '';
             document.getElementById('client').value = cert.client || '';
@@ -1284,6 +1855,10 @@
             document.getElementById('fact').value = cert.factoryNumber || '';
             document.getElementById('model').value = cert.model || '';
             document.getElementById('formTitle').innerText = '✏️ 修改证书详情';
+            // 加载证书级字段配置
+            certFieldConfig = cert.fieldConfig ? JSON.parse(JSON.stringify(cert.fieldConfig)) : {};
+            renderCertFieldConfig();
+            document.getElementById('certFieldConfigSection').classList.remove('hidden');
             const certUrl = QUERY_BASE_URL + '?id=' + encodeURIComponent(id);
             let linkDiv = document.getElementById('certUrlDisplay');
             if (!linkDiv) {
