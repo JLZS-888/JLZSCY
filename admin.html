@@ -16,6 +16,11 @@
     <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script>
+    if (typeof QRCode === 'undefined') {
+        document.write('<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"><\/script>');
+    }
+    </script>
 
 </head>
 
@@ -1002,6 +1007,7 @@
         function showQR(id) {
             const cert = certs.find(c => c.id === id);
             if (!cert) return alert('证书不存在');
+            if (typeof QRCode === 'undefined') return alert('二维码库加载失败，请刷新页面重试');
             const modal = document.getElementById('qrModal');
             const canvas = document.getElementById('qrCanvas');
             // 二维码只包含证书编号，极简
